@@ -1,0 +1,265 @@
+
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>KOIS | Booking Administration</title>
+
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+        rel="stylesheet"
+    >
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+
+    <style>
+        body {
+            background: #f3f6fa;
+        }
+
+        .kois-navbar {
+            background: #10243a;
+        }
+
+        .kois-sidebar {
+            background: #17324d;
+            min-height: calc(100vh - 56px);
+        }
+
+        .kois-sidebar a {
+            display: block;
+            color: #e8eef5;
+            padding: 12px 16px;
+            text-decoration: none;
+            border-radius: 6px;
+            margin-bottom: 4px;
+        }
+
+        .kois-sidebar a:hover,
+        .kois-sidebar a.active {
+            background: #285578;
+            color: white;
+        }
+
+        .stat-card {
+            border: 0;
+            border-radius: 12px;
+            min-height: 125px;
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 700;
+        }
+
+        .status-available {
+            color: #198754;
+            font-weight: 600;
+        }
+
+        .status-reserved {
+            color: #fd7e14;
+            font-weight: 600;
+        }
+
+        .status-full {
+            color: #dc3545;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark kois-navbar px-3 px-lg-4">
+    <a class="navbar-brand fw-bold" href="{% url 'core:booking_admin_home' %}">
+        KOIS
+    </a>
+
+    <div class="d-flex align-items-center gap-3">
+        <span class="text-white small">
+            Service Number: {{ request.user.username }}
+        </span>
+
+        <form method="post" action="{% url 'core:logout' %}">
+            {% csrf_token %}
+            <button class="btn btn-outline-light btn-sm" type="submit">
+                Logout
+            </button>
+        </form>
+    </div>
+</nav>
+
+<div class="container-fluid">
+    <div class="row">
+
+        <aside class="col-md-3 col-lg-2 kois-sidebar py-4">
+            <div class="text-uppercase text-white-50 small px-3 mb-3">
+                Booking Administration
+            </div>
+
+            <a class="active" href="{% url 'core:booking_admin_home' %}">
+                Home
+            </a>
+
+            
+<div class="text-uppercase text-white-50 small px-3 mt-4 mb-2">
+    Flight Manager
+</div>
+
+<a href="{% url 'core:aircraft_list' %}">
+    Flight Details / Aircraft
+</a>
+
+<a href="{% url 'core:route_list' %}">
+    Route Manager & Flight Status
+</a>
+
+<div class="text-uppercase text-white-50 small px-3 mt-4 mb-2">
+    Operations
+</div>
+
+<a href="{% url 'core:booking_list' %}">
+    Manage Bookings
+</a>
+
+<!-- <a href="{% url 'core:route_list' %}">
+    Reports / Flight Schedule
+</a> -->
+<a href="{% url 'core:official_seat_reservations' %}">
+    Official Seat Reservations
+</a>
+
+<a href="{% url 'core:route_list' %}">
+    Reports / Flight Schedule
+</a>
+        </aside>
+
+        <main class="col-md-9 col-lg-10 px-3 px-lg-4 py-4">
+
+            <div class="mb-4">
+                <h2 class="mb-1">Booking Admin Dashboard</h2>
+                <p class="text-muted mb-0">
+                    Manage aircraft, flight routes, reservations and passenger manifests.
+                </p>
+            </div>
+
+            <div class="row g-3 mb-4">
+                <div class="col-sm-6 col-xl-3">
+                    <div class="card stat-card shadow-sm">
+                        <div class="card-body">
+                            <div class="text-muted">Active Aircraft</div>
+                            <div class="stat-number">
+                                {{ active_aircraft }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-sm-6 col-xl-3">
+                    <div class="card stat-card shadow-sm">
+                        <div class="card-body">
+                            <div class="text-muted">Pending Bookings</div>
+                            <div class="stat-number text-warning">
+                                {{ pending_bookings }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-sm-6 col-xl-3">
+                    <div class="card stat-card shadow-sm">
+                        <div class="card-body">
+                            <div class="text-muted">Approved Bookings</div>
+                            <div class="stat-number text-success">
+                                {{ approved_bookings }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-sm-6 col-xl-3">
+                    <div class="card stat-card shadow-sm">
+                        <div class="card-body">
+                            <div class="text-muted">Cancelled Bookings</div>
+                            <div class="stat-number text-danger">
+                                {{ cancelled_bookings }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm mb-4" id="booking-summary">
+                <div class="card-header bg-white py-3">
+                    <strong>Booking Overview</strong>
+                </div>
+                <div class="card-body">
+                    <p class="mb-2">
+                        Pending reservations require a decision from authorised staff.
+                    </p>
+                    <p class="mb-0 text-muted">
+                        Approved bookings appear on the passenger manifest.
+                        Cancelled bookings no longer reserve a seat.
+                    </p>
+                </div>
+            </div>
+
+            <div class="card shadow-sm" id="upcoming-flights">
+                <div class="card-header bg-white py-3">
+                    <strong>Upcoming Flights</strong>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Aircraft</th>
+                                <th>Tail Number</th>
+                                <th>Departure</th>
+                                <th>Destination</th>
+                                <th>Departure Time</th>
+                                <th>Arrival Time</th>
+                                <th>Available Seats</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for route in upcoming_routes %}
+                                <tr>
+                                    <td>{{ route.aircraft.name }}</td>
+                                    <td>{{ route.aircraft.tail_number }}</td>
+                                    <td>{{ route.departure_airport }}</td>
+                                    <td>{{ route.destination_airport }}</td>
+                                    <td>{{ route.departure_datetime|date:"d M Y H:i" }}</td>
+                                    <td>{{ route.arrival_datetime|date:"d M Y H:i" }}</td>
+                                    <td>{{ route.available_seats }}</td>
+                                    <td>
+                                        {% if route.flight_status == "FULL" %}
+                                            <span class="status-full">Full</span>
+                                        {% elif route.flight_status == "RESERVED" %}
+                                            <span class="status-reserved">Reserved seats</span>
+                                        {% else %}
+                                            <span class="status-available">Available</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="8" class="text-center py-4 text-muted">
+                                        No upcoming flights have been created yet.
+                                        Add aircraft and routes to begin.
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </main>
+    </div>
+</div>
+
+</body>
+</html>

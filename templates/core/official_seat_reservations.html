@@ -1,0 +1,179 @@
+
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>KOIS | Official Seat Reservations</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+          rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body class="bg-light">
+
+<nav class="navbar navbar-dark px-4" style="background:#10243a;">
+    <a class="navbar-brand fw-bold"
+       href="{% url 'core:booking_admin_home' %}">KOIS</a>
+    <div class="text-white">
+        {{ request.user.username }}
+        <form method="post" action="{% url 'core:logout' %}" class="d-inline ms-2">
+            {% csrf_token %}
+            <button class="btn btn-outline-light btn-sm">Logout</button>
+        </form>
+    </div>
+</nav>
+
+<div class="container py-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+        <div>
+            <h2>Official Seat Reservations</h2>
+            <p class="text-muted mb-0">
+                Reserve seats for official duties and manage existing reservations.
+            </p>
+        </div>
+        <a href="{% url 'core:booking_admin_home' %}"
+           class="btn btn-outline-secondary">Back to Dashboard</a>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show">
+                {{ message }}
+                <button type="button" class="btn-close"
+                        data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white py-3">
+            <strong>Reserve Seats on a Flight</strong>
+        </div>
+        <div class="card-body">
+            <form method="post">
+                {% csrf_token %}
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label for="route" class="form-label">Flight Route</label>
+                        <select name="route" id="route" class="form-select" required>
+                            <option value="">Select a flight</option>
+                            {% for route in upcoming_routes %}
+                                <option value="{{ route.id }}">
+                                    {{ route.aircraft.name }}
+                                    ({{ route.aircraft.tail_number }}) —
+                                    {{ route.departure_airport }} to
+                                    {{ route.destination_airport }} —
+                                    {{ route.departure_datetime|date:"d M Y H:i" }}
+                                    — {{ route.available_seats }} seats available
+                                </option>
+                            {% empty %}
+                                <option value="">No upcoming flights available</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="col-md-2">
+                        <label for="seats_reserved" class="form-label">
+                            Number of Seats
+                        </label>
+                        <input type="number" name="seats_reserved"
+                               id="seats_reserved" class="form-control"
+                               min="1" required>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label for="reason" class="form-label">
+                            Reason for Reservation
+                        </label>
+                        <input type="text" name="reason" id="reason"
+                               class="form-control"
+                               placeholder="e.g. Official duty party"
+                               maxlength="255" required>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary mt-3">
+                    Reserve Seats
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-white py-3">
+            <strong>Active Official Reservations</strong>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Aircraft</th>
+                        <th>Flight Route</th>
+                        <th>Departure</th>
+                        <th>Seats Reserved</th>
+                        <th>Reason</th>
+                        <th>Reserved By</th>
+                        <th>Date Reserved</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for reservation in reservations %}
+                        <tr>
+                            <td>
+                                {{ reservation.route.aircraft.name }}
+                                <br>
+                                <small class="text-muted">
+                                    {{ reservation.route.aircraft.tail_number }}
+                                </small>
+                            </td>
+                            <td>
+                                {{ reservation.route.departure_airport }}
+                                to {{ reservation.route.destination_airport }}
+                            </td>
+                            <td>
+                                {{ reservation.route.departure_datetime|date:"d M Y H:i" }}
+                            </td>
+                            <td>
+                                <span class="badge text-bg-warning">
+                                    {{ reservation.seats_reserved }}
+                                </span>
+                            </td>
+                            <td>{{ reservation.reason }}</td>
+                            <td>
+                                {% if reservation.reserved_by %}
+                                    {{ reservation.reserved_by.username }}
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </td>
+                            <td>{{ reservation.created_at|date:"d M Y H:i" }}</td>
+                            <td>
+                                <form method="post"
+                                      action="{% url 'core:release_official_seat_reservation' reservation.id %}"
+                                      onsubmit="return confirm('Release these reserved seats?');">
+                                    {% csrf_token %}
+                                    <button type="submit"
+                                            class="btn btn-sm btn-outline-danger">
+                                        Release Seats
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="8" class="text-center text-muted py-4">
+                                No active official seat reservations.
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

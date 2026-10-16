@@ -1,0 +1,830 @@
+from django.contrib import messages
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import render, redirect
+from django.views.decorators.http import require_POST
+from django.utils import timezone
+from django.db import transaction
+from django.shortcuts import get_object_or_404, redirect, render
+from .models import Booking, FlightRoute, UserProfile
+from .forms import KOISLoginForm, KOISSignUpForm
+from .models import UserProfile,Aircraft,FlightRoute,Booking
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.db.models import Count, Q
+from django.contrib.auth import get_user_model
+from django import forms
+from decimal import Decimal, InvalidOperation
+
+
+
+MODULES = {
+    "manifest": {
+        "name": "Flight Booking & Manifest",
+        "role": UserProfile.Role.MANIFEST,
+        "template": "core/manifest_dashboard.html",
+    },
+    "flightops": {
+        "name": "Flight Authorization & Hours",
+        "role": UserProfile.Role.FLIGHTOPS,
+        "template": "core/flightops_dashboard.html",
+    },
+    "maintenance": {
+        "name": "Aircraft Maintenance",
+        "role": UserProfile.Role.MAINTENANCE,
+        "template": "core/maintenance_dashboard.html",
+    },
+    "booking_admin": {
+    "name": "Booking Administration",
+    "role": UserProfile.Role.BOOKING_ADMIN,
+    "template": "core/booking_admin_dashboard.html",
+    },
+}
+
+
+def is_kois_admin(user):
+    if not user.is_authenticated:
+        return False
+
+    if user.is_superuser:
+        return True
+
+    try:
+        return user.kois_profile.role == UserProfile.Role.ADMIN
+    except UserProfile.DoesNotExist:
+        return False
+
+def home(request):
+    return render(request, "core/home.html")
+
+
+def get_profile(user):
+    profile, _ = UserProfile.objects.get_or_create(user=user)
+    return profile
+
+
+def module_login(request):
+    module = request.POST.get("module") or request.GET.get(
+        "module", "manifest"
+    )
+
+    if module not in MODULES:
+        module = "manifest"
+
+    if request.user.is_authenticated:
+        if module == "booking_admin":
+            return redirect("core:booking_admin_home")
+        return redirect("core:dashboard", module=module)
+
+    form = KOISLoginForm(request.POST or None)
+
+    if request.method == "POST" and form.is_valid():
+        username = form.cleaned_data["username"]
+        password = form.cleaned_data["password"]
+
+        user = authenticate(
+            request,
+            username=username,
+            password=password,
+        )
+
+        if user is not None:
+            profile = get_profile(user)
+            requested_role = MODULES[module]["role"]
+
+            allowed = (
+                user.is_superuser
+                or profile.role == UserProfile.Role.ADMIN
+                or profile.role == requested_role
+            )
+
+            if allowed:
+                login(request, user)
+                if module == "booking_admin":
+                    return redirect("core:booking_admin_home")
+                return redirect("core:dashboard", module=module)
+
+            messages.error(
+                request,
+                "Your account does not have access to this module. "
+                "Please contact the KOIS administrator."
+            )
+        else:
+            messages.error(
+                request,
+                "Invalid username or password."
+            )
+
+    return render(
+        request,
+        "core/module_login.html",
+        {
+            "form": form,
+            "module": module,
+            "module_name": MODULES[module]["name"],
+        },
+    )
+
+
+def signup(request):
+    module = request.GET.get("module", "manifest")
+
+    if module not in MODULES:
+        module = "manifest"
+
+    if request.user.is_authenticated:
+        return redirect("core:home")
+
+    form = KOISSignUpForm(request.POST or None)
+
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(
+            request,
+            "Account created successfully. "
+            "An administrator must assign your module access."
+        )
+        return redirect(
+            f"/login/?module={module}"
+        )
+
+    return render(
+        request,
+        "core/signup.html",
+        {
+            "form": form,
+            "module": module,
+        },
+    )
+
+
+@login_required
+def dashboard(request, module):
+    if module not in MODULES:
+        messages.error(request, "Unknown KOIS module.")
+        return redirect("core:home")
+
+    profile = get_profile(request.user)
+    requested_role = MODULES[module]["role"]
+
+    allowed = (
+        request.user.is_superuser
+        or profile.role == UserProfile.Role.ADMIN
+        or profile.role == requested_role
+    )
+
+    if not allowed:
+        messages.error(
+            request,
+            "You are not authorised to access this dashboard."
+        )
+        return redirect("core:home")
+
+    return render(
+        request,
+        MODULES[module]["template"],
+        {
+            "module": module,
+            "module_name": MODULES[module]["name"],
+            "profile": profile,
+        },
+    )
+
+
+@require_POST
+@login_required
+def logout_view(request):
+    logout(request)
+    messages.success(request, "You have logged out successfully.")
+    return redirect("core:home")
+
+
+User = get_user_model()
+
+
+@login_required
+def user_management(request):
+    if not is_kois_admin(request.user):
+        messages.error(
+            request,
+            "You are not authorised to manage KOIS personnel."
+        )
+        return redirect("core:home")
+
+    profiles = UserProfile.objects.select_related("user").all()
+
+    search_query = request.GET.get("q", "").strip()
+    selected_role = request.GET.get("role", "").strip()
+    selected_rank = request.GET.get("rank", "").strip()
+
+    if search_query:
+        profiles = profiles.filter(
+            Q(user__username__icontains=search_query)
+            | Q(user__email__icontains=search_query)
+            | Q(first_name__icontains=search_query)
+            | Q(middle_name__icontains=search_query)
+            | Q(last_name__icontains=search_query)
+            | Q(phone_number__icontains=search_query)
+        )
+
+    valid_roles = {value for value, label in UserProfile.Role.choices}
+    valid_ranks = {value for value, label in UserProfile.Rank.choices}
+
+    if selected_role in valid_roles:
+        profiles = profiles.filter(role=selected_role)
+    else:
+        selected_role = ""
+
+    if selected_rank in valid_ranks:
+        profiles = profiles.filter(rank=selected_rank)
+    else:
+        selected_rank = ""
+
+    profiles = profiles.order_by("user__username")
+
+    return render(
+        request,
+        "core/user_management.html",
+        {
+            "profiles": profiles,
+            "search_query": search_query,
+            "selected_role": selected_role,
+            "selected_rank": selected_rank,
+            "role_choices": UserProfile.Role.choices,
+            "rank_choices": UserProfile.Rank.choices,
+            "total_users": UserProfile.objects.count(),
+        },
+    )
+
+@login_required
+def booking_admin_home(request):
+    profile = get_profile(request.user)
+
+    allowed = (
+        request.user.is_superuser
+        or profile.role in [
+            UserProfile.Role.ADMIN,
+            UserProfile.Role.BOOKING_ADMIN,
+        ]
+    )
+
+    if not allowed:
+        messages.error(
+            request,
+            "You are not authorised to access Booking Administration."
+        )
+        return redirect("core:home")
+
+    active_aircraft = Aircraft.objects.filter(is_active=True).count()
+
+    upcoming_routes = FlightRoute.objects.filter(
+        is_active=True,
+        departure_datetime__gte=timezone.now(),
+    ).select_related("aircraft").order_by("departure_datetime")
+
+    pending_bookings = Booking.objects.filter(
+        status=Booking.Status.PENDING
+    ).count()
+
+    approved_bookings = Booking.objects.filter(
+        status=Booking.Status.APPROVED
+    ).count()
+
+    cancelled_bookings = Booking.objects.filter(
+        status=Booking.Status.CANCELLED
+    ).count()
+
+    return render(
+        request,
+        "core/booking_admin_dashboard.html",
+        {
+            "profile": profile,
+            "active_aircraft": active_aircraft,
+            "upcoming_routes": upcoming_routes[:10],
+            "pending_bookings": pending_bookings,
+            "approved_bookings": approved_bookings,
+            "cancelled_bookings": cancelled_bookings,
+        },
+    )
+
+
+def can_manage_flights(user):
+    if not user.is_authenticated:
+        return False
+
+    if user.is_superuser:
+        return True
+
+    try:
+        return user.kois_profile.role in [
+            UserProfile.Role.ADMIN,
+            UserProfile.Role.BOOKING_ADMIN,
+        ]
+    except UserProfile.DoesNotExist:
+        return False
+
+
+@login_required
+def aircraft_list(request):
+    if not can_manage_flights(request.user):
+        messages.error(request, "You cannot manage aircraft.")
+        return redirect("core:home")
+
+    aircraft = Aircraft.objects.all()
+
+    return render(
+        request,
+        "core/aircraft_list.html",
+        {"aircraft": aircraft},
+    )
+
+
+@login_required
+def aircraft_create(request):
+    if not can_manage_flights(request.user):
+        messages.error(request, "You cannot register aircraft.")
+        return redirect("core:home")
+
+    if request.method == "POST":
+        name = request.POST.get("name", "").strip()
+        tail_number = request.POST.get("tail_number", "").strip().upper()
+        capacity = request.POST.get("passenger_capacity", "").strip()
+        payload = request.POST.get("maximum_payload_kg", "0").strip()
+
+        errors = []
+
+        if not name or not tail_number:
+            errors.append("Aircraft name and tail number are required.")
+
+        try:
+            capacity = int(capacity)
+            if capacity < 1:
+                raise ValueError
+        except (ValueError, TypeError):
+            errors.append("Passenger capacity must be at least 1.")
+
+        try:
+            payload = float(payload)
+            if payload < 0:
+                raise ValueError
+        except (ValueError, TypeError):
+            errors.append("Maximum payload cannot be negative.")
+
+        if tail_number and Aircraft.objects.filter(
+            tail_number__iexact=tail_number
+        ).exists():
+            errors.append("That tail number is already registered.")
+
+        if errors:
+            for error in errors:
+                messages.error(request, error)
+        else:
+            Aircraft.objects.create(
+                name=name,
+                tail_number=tail_number,
+                passenger_capacity=capacity,
+                maximum_payload_kg=payload,
+            )
+            messages.success(request, "Aircraft registered successfully.")
+            return redirect("core:aircraft_list")
+
+    return render(request, "core/aircraft_form.html")
+
+
+
+def can_manage_bookings(user):
+    if not user.is_authenticated:
+        return False
+
+    if user.is_superuser:
+        return True
+
+    try:
+        return user.kois_profile.role in [
+            UserProfile.Role.ADMIN,
+            UserProfile.Role.BOOKING_ADMIN,
+        ]
+    except UserProfile.DoesNotExist:
+        return False
+
+
+@login_required
+def booking_list(request):
+    if not can_manage_bookings(request.user):
+        messages.error(request, "You are not authorised to manage bookings.")
+        return redirect("core:home")
+
+    selected_status = request.GET.get("status", "PENDING")
+
+    valid_statuses = [
+        Booking.Status.PENDING,
+        Booking.Status.APPROVED,
+        Booking.Status.CANCELLED,
+    ]
+
+    bookings = Booking.objects.select_related(
+        "passenger",
+        "route",
+        "route__aircraft",
+        "authorizing_staff",
+    ).all()
+
+    if selected_status in valid_statuses:
+        bookings = bookings.filter(status=selected_status)
+    else:
+        selected_status = "ALL"
+
+    return render(request, "core/manage_bookings.html", {
+        "bookings": bookings,
+        "selected_status": selected_status,
+        "pending_count": Booking.objects.filter(
+            status=Booking.Status.PENDING
+        ).count(),
+        "approved_count": Booking.objects.filter(
+            status=Booking.Status.APPROVED
+        ).count(),
+        "cancelled_count": Booking.objects.filter(
+            status=Booking.Status.CANCELLED
+        ).count(),
+    })
+
+
+@login_required
+@require_POST
+def booking_approve(request, booking_id):
+    if not can_manage_bookings(request.user):
+        messages.error(request, "You are not authorised to approve bookings.")
+        return redirect("core:home")
+
+    with transaction.atomic():
+        booking = get_object_or_404(
+            Booking.objects.select_for_update().select_related("route"),
+            pk=booking_id,
+        )
+
+        # Lock the route so concurrent approvals cannot overbook it.
+        route = get_object_or_404(
+            FlightRoute.objects.select_for_update().select_related("aircraft"),
+            pk=booking.route_id,
+        )
+
+        if booking.status != Booking.Status.PENDING:
+            messages.warning(
+                request,
+                "Only pending bookings can be approved."
+            )
+        elif not route.is_active:
+            messages.error(
+                request,
+                "This flight route is inactive. The booking was not approved."
+            )
+        elif route.departure_datetime <= timezone.now():
+            messages.error(
+                request,
+                "This flight has already reached its departure time."
+            )
+        else:
+            occupied = Booking.objects.filter(
+                route=route,
+                status__in=[
+                    Booking.Status.PENDING,
+                    Booking.Status.APPROVED,
+                ],
+            ).count()
+
+            if occupied > route.aircraft.passenger_capacity:
+                messages.error(
+                    request,
+                    "The flight booking count exceeds its capacity. "
+                    "Please review the bookings."
+                )
+            elif occupied == 0:
+                messages.error(
+                    request,
+                    "No active seat reservation was found for this booking."
+                )
+            else:
+                booking.status = Booking.Status.APPROVED
+                booking.authorizing_staff = request.user
+                booking.save(
+                    update_fields=[
+                        "status",
+                        "authorizing_staff",
+                        "updated_at",
+                    ]
+                )
+                messages.success(
+                    request,
+                    f"Booking {booking.ticket_number} approved successfully."
+                )
+
+    return redirect("core:booking_list")
+
+
+@login_required
+@require_POST
+def booking_cancel(request, booking_id):
+    if not can_manage_bookings(request.user):
+        messages.error(request, "You are not authorised to cancel bookings.")
+        return redirect("core:home")
+
+    with transaction.atomic():
+        booking = get_object_or_404(
+            Booking.objects.select_for_update(),
+            pk=booking_id,
+        )
+
+        if booking.status == Booking.Status.CANCELLED:
+            messages.warning(request, "This booking is already cancelled.")
+        else:
+            booking.status = Booking.Status.CANCELLED
+            booking.save(update_fields=["status", "updated_at"])
+            messages.success(
+                request,
+                f"Booking {booking.ticket_number} cancelled successfully."
+            )
+
+    return redirect("core:booking_list")
+
+
+@login_required
+def route_list(request):
+    if not can_manage_flights(request.user):
+        messages.error(request, "You cannot manage routes.")
+        return redirect("core:home")
+
+    routes = FlightRoute.objects.select_related("aircraft").all()
+
+    return render(
+        request,
+        "core/route_list.html",
+        {"routes": routes},
+    )
+
+
+@login_required
+def route_create(request):
+    if not can_manage_flights(request.user):
+        messages.error(request, "You cannot create flight routes.")
+        return redirect("core:home")
+
+    aircraft = Aircraft.objects.filter(is_active=True)
+
+    if request.method == "POST":
+        aircraft_id = request.POST.get("aircraft")
+        departure = request.POST.get("departure_airport", "").strip()
+        destination = request.POST.get("destination_airport", "").strip()
+        departure_time = request.POST.get("departure_datetime", "").strip()
+        arrival_time = request.POST.get("arrival_datetime", "").strip()
+
+        try:
+            selected_aircraft = aircraft.get(pk=aircraft_id)
+            departure_dt = timezone.datetime.fromisoformat(departure_time)
+            arrival_dt = timezone.datetime.fromisoformat(arrival_time)
+
+            if timezone.is_naive(departure_dt):
+                departure_dt = timezone.make_aware(departure_dt)
+            if timezone.is_naive(arrival_dt):
+                arrival_dt = timezone.make_aware(arrival_dt)
+
+            if not departure or not destination:
+                raise ValueError("Enter both departure and destination airports.")
+
+            if departure_dt <= timezone.now():
+                raise ValueError("Departure must be in the future.")
+
+            if arrival_dt <= departure_dt:
+                raise ValueError("Arrival must be after departure.")
+
+        except Aircraft.DoesNotExist:
+            messages.error(request, "Select a valid active aircraft.")
+        except (ValueError, TypeError):
+            messages.error(
+                request,
+                "Enter valid airports and departure/arrival date and times."
+            )
+        else:
+            FlightRoute.objects.create(
+                aircraft=selected_aircraft,
+                departure_airport=departure,
+                destination_airport=destination,
+                departure_datetime=departure_dt,
+                arrival_datetime=arrival_dt,
+            )
+            messages.success(request, "Flight route created successfully.")
+            return redirect("core:route_list")
+
+    return render(
+        request,
+        "core/route_form.html",
+        {"aircraft": aircraft},
+    )
+
+
+@login_required
+def manifest_flights(request):
+    profile = get_profile(request.user)
+
+    if not (
+        request.user.is_superuser
+        or profile.role in [
+            UserProfile.Role.ADMIN,
+            UserProfile.Role.MANIFEST,
+        ]
+    ):
+        messages.error(request, "You are not authorised to access passenger flights.")
+        return redirect("core:home")
+
+    routes = FlightRoute.objects.filter(
+        is_active=True,
+        departure_datetime__gt=timezone.now(),
+        aircraft__is_active=True,
+    ).select_related("aircraft").order_by("departure_datetime")
+
+    return render(request, "core/manifest_flights.html", {
+        "profile": profile,
+        "routes": routes,
+    })
+
+
+@login_required
+def passenger_book(request):
+    profile = get_profile(request.user)
+
+    if not (
+        request.user.is_superuser
+        or profile.role in [
+            UserProfile.Role.ADMIN,
+            UserProfile.Role.MANIFEST,
+        ]
+    ):
+        messages.error(request, "You are not authorised to book flights.")
+        return redirect("core:home")
+
+    routes = FlightRoute.objects.filter(
+        is_active=True,
+        departure_datetime__gt=timezone.now(),
+        aircraft__is_active=True,
+    ).select_related("aircraft").order_by("departure_datetime")
+
+    # Use the saved profile for the passenger's identity.
+    first_name = profile.first_name or request.user.first_name
+    last_name = profile.last_name or request.user.last_name
+    middle_name = profile.middle_name
+    rank = profile.rank
+    service_number = request.user.username
+
+    if request.method == "POST":
+        route_id = request.POST.get("route")
+        appointment = request.POST.get("appointment", "").strip()
+        passenger_weight_raw = request.POST.get("passenger_weight_kg", "").strip()
+        luggage_count_raw = request.POST.get("luggage_count", "0").strip()
+        luggage_weight_raw = request.POST.get("luggage_weight_kg", "0").strip()
+
+        errors = []
+        selected_route = None
+        passenger_weight = None
+        luggage_count = 0
+        luggage_weight = Decimal("0")
+
+        try:
+            selected_route = routes.get(pk=route_id)
+        except (FlightRoute.DoesNotExist, ValueError, TypeError):
+            errors.append("Select a valid available flight.")
+
+        if not first_name or not last_name:
+            errors.append(
+                "Your first and last names must be saved in your profile before booking."
+            )
+
+        if passenger_weight_raw:
+            try:
+                passenger_weight = Decimal(passenger_weight_raw)
+                if passenger_weight < 0:
+                    raise InvalidOperation
+            except (InvalidOperation, ValueError):
+                errors.append("Passenger weight must be a valid non-negative number.")
+
+        try:
+            luggage_count = int(luggage_count_raw)
+            if luggage_count < 0:
+                raise ValueError
+        except (ValueError, TypeError):
+            errors.append("Luggage count must be zero or a positive whole number.")
+
+        try:
+            luggage_weight = Decimal(luggage_weight_raw)
+            if luggage_weight < 0:
+                raise InvalidOperation
+        except (InvalidOperation, ValueError):
+            errors.append("Luggage weight must be a valid non-negative number.")
+
+        if luggage_count == 0 and luggage_weight > 0:
+            errors.append("Enter a luggage count if you have luggage weight.")
+
+        if selected_route and not errors:
+            with transaction.atomic():
+                route = FlightRoute.objects.select_for_update().select_related(
+                    "aircraft"
+                ).get(pk=selected_route.pk)
+
+                active_bookings = Booking.objects.filter(
+                    route=route,
+                    status__in=[
+                        Booking.Status.PENDING,
+                        Booking.Status.APPROVED,
+                    ],
+                )
+
+                already_booked = active_bookings.filter(
+                    passenger=request.user
+                ).exists()
+
+                seat_count = active_bookings.count()
+
+                if not route.is_active or not route.aircraft.is_active:
+                    messages.error(request, "This flight is no longer available.")
+                elif route.departure_datetime <= timezone.now():
+                    messages.error(request, "This flight has already reached its departure time.")
+                elif already_booked:
+                    messages.error(request, "You already have an active booking for this flight.")
+                elif seat_count >= route.aircraft.passenger_capacity:
+                    messages.error(request, "This flight is full.")
+                else:
+                    total_weight = luggage_weight
+                    if passenger_weight is not None:
+                        total_weight += passenger_weight
+
+                    if (
+                        route.aircraft.maximum_payload_kg > 0
+                        and total_weight > route.aircraft.maximum_payload_kg
+                    ):
+                        messages.error(
+                            request,
+                            "Passenger and luggage weight exceeds the aircraft's "
+                            "configured maximum payload."
+                        )
+                    else:
+                        Booking.objects.create(
+                            passenger=request.user,
+                            route=route,
+                            service_number=service_number,
+                            rank=rank,
+                            first_name=first_name,
+                            middle_name=middle_name,
+                            last_name=last_name,
+                            appointment=appointment,
+                            passenger_weight_kg=passenger_weight,
+                            luggage_count=luggage_count,
+                            luggage_weight_kg=luggage_weight,
+                            status=Booking.Status.PENDING,
+                        )
+                        messages.success(
+                            request,
+                            "Your booking request was submitted. "
+                            "Check its status on the Check Booking page."
+                        )
+                        return redirect("core:my_bookings")
+
+        for error in errors:
+            messages.error(request, error)
+
+    return render(request, "core/passenger_book.html", {
+        "profile": profile,
+        "routes": routes,
+        "service_number": service_number,
+        "rank": rank,
+        "first_name": first_name,
+        "middle_name": middle_name,
+        "last_name": last_name,
+    })
+
+
+@login_required
+def my_bookings(request):
+    profile = get_profile(request.user)
+
+    if not (
+        request.user.is_superuser
+        or profile.role in [
+            UserProfile.Role.ADMIN,
+            UserProfile.Role.MANIFEST,
+        ]
+    ):
+        messages.error(request, "You are not authorised to view these bookings.")
+        return redirect("core:home")
+
+    bookings = Booking.objects.filter(
+        passenger=request.user
+    ).select_related(
+        "route",
+        "route__aircraft",
+        "authorizing_staff",
+    ).order_by("-created_at")
+
+    return render(request, "core/my_bookings.html", {
+        "profile": profile,
+        "bookings": bookings,
+    })
+
+
+

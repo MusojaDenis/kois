@@ -1,0 +1,119 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Available Flights | KOIS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+          rel="stylesheet">
+    <style>
+        body { background: #f4f6f9; }
+        .navbar { background: #12345a; }
+        .sidebar { min-height: calc(100vh - 56px); background: #172b4d; }
+        .sidebar a { display: block; color: white; padding: 12px 18px; text-decoration: none; }
+        .sidebar a:hover, .sidebar a.active { background: #284a76; }
+        .content { padding: 25px; }
+        .available { color: #198754; font-weight: bold; }
+        .reserved { color: #d97706; font-weight: bold; }
+        .full { color: #dc3545; font-weight: bold; }
+    </style>
+</head>
+<body>
+<nav class="navbar navbar-dark px-3">
+    <a class="navbar-brand fw-bold" href="{% url 'core:manifest_flights' %}">KOIS</a>
+    <div class="d-flex align-items-center gap-3 text-white">
+        <span>Service No: {{ request.user.username }}</span>
+        <form method="post" action="{% url 'core:logout' %}" class="m-0">
+            {% csrf_token %}
+            <button class="btn btn-outline-light btn-sm" type="submit">Logout</button>
+        </form>
+    </div>
+</nav>
+
+<div class="container-fluid">
+    <div class="row">
+        <aside class="col-md-2 sidebar px-0">
+            <a class="active" href="{% url 'core:manifest_flights' %}">Flights</a>
+            <a href="{% url 'core:passenger_book' %}">Book a Flight</a>
+            <a href="{% url 'core:my_bookings' %}">Check Booking / Ticket</a>
+        </aside>
+
+        <main class="col-md-10 content">
+            <h2>Available Flights</h2>
+            <p class="text-muted">Upcoming active flights with current seat availability.</p>
+
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-info alert-dismissible fade show">
+                        {{ message }}
+                        <button class="btn-close" type="button" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+
+            <div class="card shadow-sm">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover align-middle mb-0">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Aircraft</th>
+                                <th>Tail Number</th>
+                                <th>Route</th>
+                                <th>Departure</th>
+                                <th>Arrival</th>
+                                <th>Capacity</th>
+                                <th>Available Seats</th>
+                                <th>Reserved Seats</th>
+                                <th>Status</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for route in routes %}
+                            <tr>
+                                <td>{{ route.aircraft.name }}</td>
+                                <td>{{ route.aircraft.tail_number }}</td>
+                                <td>{{ route.departure_airport }} &rarr; {{ route.destination_airport }}</td>
+                                <td>{{ route.departure_datetime|date:"d M Y, H:i" }}</td>
+                                <td>{{ route.arrival_datetime|date:"d M Y, H:i" }}</td>
+                                <td>{{ route.aircraft.passenger_capacity }}</td>
+                                <td>{{ route.available_seats }}</td>
+                                <td>{{ route.reserved_seats }}</td>
+                                <td>
+                                    {% if route.flight_status == "FULL" %}
+                                        <span class="full">Full</span>
+                                    {% elif route.flight_status == "RESERVED" %}
+                                        <span class="reserved">Reserved</span>
+                                    {% else %}
+                                        <span class="available">Available</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if route.available_seats > 0 %}
+                                        <a class="btn btn-primary btn-sm"
+                                           href="{% url 'core:passenger_book' %}?route={{ route.id }}">
+                                            Book
+                                        </a>
+                                    {% else %}
+                                        <button class="btn btn-secondary btn-sm" disabled>Full</button>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="10" class="text-center py-4">
+                                    No upcoming flights are available at the moment.
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
