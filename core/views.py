@@ -974,5 +974,97 @@ def release_official_seat_reservation(request, reservation_id):
     return redirect("core:official_seat_reservations")
 
 
+@login_required
+def flight_reports(request):
+    if not can_manage_flights(request.user):
+        messages.error(
+            request,
+            "You are not authorised to access flight reports."
+        )
+        return redirect("core:home")
+
+    
+    search_query = request.GET.get("q", "").strip()
+    selected_route_id = request.GET.get("route", "").strip()
+    selected_status = request.GET.get("status", "ALL").upper()
+
+    valid_statuses = [
+        Booking.Status.APPROVED,
+        Booking.Status.PENDING,
+        Booking.Status.CANCELLED,
+    ]
+
+    if selected_status not in ["ALL", *valid_statuses]:
+        selected_status = "ALL"
+
+
+    routes = FlightRoute.objects.select_related("aircraft").all()
+
+    # Search by aircraft name or tail number.
+    if search_query:
+        routes = routes.filter(
+            Q(aircraft__name__icontains=search_query)
+            | Q(aircraft__tail_number__icontains=search_query)
+        )
+
+    selected_route = None
+    bookings = Booking.objects.none()
+
+    passenger_count = 0
+    total_luggage_count = 0
+    total_passenger_weight = 0
+    total_luggage_weight = 0
+
+    if selected_route_id:
+        selected_route = get_object_or_404(
+            routes,
+            pk=selected_route_id,
+        )
+
+        
+        bookings = Booking.objects.filter(
+            route=selected_route,
+        ).select_related(
+            "passenger",
+            "authorizing_staff",
+        ).order_by(
+            "last_name",
+            "first_name",
+        )
+
+        if selected_status != "ALL":
+            bookings = bookings.filter(status=selected_status)
+
+
+        totals = bookings.aggregate(
+            passenger_weight=Sum("passenger_weight_kg"),
+            luggage_weight=Sum("luggage_weight_kg"),
+            luggage_count=Sum("luggage_count"),
+        )
+
+        passenger_count = bookings.count()
+        total_luggage_count = totals["luggage_count"] or 0
+        total_passenger_weight = totals["passenger_weight"] or 0
+        total_luggage_weight = totals["luggage_weight"] or 0
+
+    return render(
+        request,
+        "core/reports.html",
+        {
+            "routes": routes,
+            "selected_route": selected_route,
+            "bookings": bookings,
+            "search_query": search_query,
+            "selected_route_id": selected_route_id,
+            "passenger_count": passenger_count,
+            "total_luggage_count": total_luggage_count,
+            "total_passenger_weight": total_passenger_weight,
+            "total_luggage_weight": total_luggage_weight,
+            "report_prepared_by": request.user,
+            "selected_status": selected_status,
+            "report_date": timezone.localdate(),
+        },
+    )
+
 
 

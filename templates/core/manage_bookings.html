@@ -51,19 +51,31 @@
 <div class="container-fluid">
     <div class="row">
         <aside class="col-md-2 sidebar px-0">
+                        <div class="text-uppercase text-white-50 small px-3 mb-3">
+                Booking Administration
+            </div>
             <a href="{% url 'core:booking_admin_home' %}">Home</a>
 
             <div class="text-uppercase text-white-50 small px-3 mt-4 mb-2">
                 Flight Manager
             </div>
-            <a href="{% url 'core:aircraft_list' %}">Flight Details / Aircraft</a>
-            <a href="{% url 'core:route_list' %}">Route Manager</a>
+
+            <a href="{% url 'core:aircraft_list' %}">
+                Flight Details / Aircraft
+            </a>
+
+            <a href="{% url 'core:route_list' %}">
+                Route Manager & Flight Status
+            </a>
 
             <div class="text-uppercase text-white-50 small px-3 mt-4 mb-2">
                 Operations
             </div>
             <a class="active" href="{% url 'core:booking_list' %}">
                 Manage Bookings
+            </a>
+            <a href="{% url 'core:official_seat_reservations' %}">
+                Official Seat Reservations
             </a>
             <a href="{% url 'core:route_list' %}">Reports / Flight Schedule</a>
         </aside>

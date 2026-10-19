@@ -1,0 +1,588 @@
+
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>KOIS | Flight Passenger Report</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+          rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+
+    <style>
+        body {
+            background: #f3f6fa;
+            color: #202b36;
+        }
+
+        .report-header {
+            border-bottom: 3px solid #17324d;
+            padding-bottom: 16px;
+        }
+
+        .report-title {
+            color: #17324d;
+            font-weight: 700;
+        }
+
+        .summary-card {
+            border: 0;
+            border-radius: 10px;
+            min-height: 100px;
+        }
+
+        .summary-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .report-table th {
+            background: #17324d;
+            color: white;
+            white-space: nowrap;
+        }
+
+        .report-table td {
+            vertical-align: middle;
+        }
+
+        .signature-line {
+            border-bottom: 1px solid #333;
+            min-height: 35px;
+            margin-bottom: 8px;
+        }
+
+        .print-only {
+            display: none;
+        }
+
+        @media print {
+            @page {
+                size: A4 landscape;
+                margin: 12mm;
+            }
+
+            body {
+                background: white !important;
+                color: black !important;
+                font-size: 10px;
+            }
+
+            .no-print,
+            nav,
+            .alert {
+                display: none !important;
+            }
+
+            .print-only {
+                display: block !important;
+            }
+
+            .container-fluid {
+                padding: 0 !important;
+            }
+
+            .card {
+                box-shadow: none !important;
+                border: 1px solid #bbb !important;
+            }
+
+            .report-table {
+                width: 100%;
+                font-size: 9px;
+            }
+
+            .report-table th {
+                background: #e5e5e5 !important;
+                color: black !important;
+                print-color-adjust: exact;
+                -webkit-print-color-adjust: exact;
+            }
+
+            .report-header {
+                border-bottom: 2px solid black;
+            }
+
+            .summary-value {
+                font-size: 13px;
+            }
+
+            .signature-section {
+                margin-top: 30px;
+                page-break-inside: avoid;
+            }
+
+            a {
+                color: black !important;
+                text-decoration: none !important;
+            }
+            
+        }
+        
+        .official-letterhead {
+            display: grid;
+            grid-template-columns: 1fr 150px 1fr;
+            gap: 14px;
+            align-items: start;
+            padding: 14px 0 18px;
+            border-bottom: 2px solid #17324d;
+            margin-bottom: 20px;
+        }
+
+        .letterhead-block {
+            font-size: 11px;
+            line-height: 1.55;
+            overflow-wrap: anywhere;
+        }
+
+        .letterhead-left {
+            text-align: left;
+        }
+
+        .letterhead-center {
+            text-align: center;
+        }
+
+        .letterhead-right {
+            text-align: right;
+        }
+
+        .kois-logo {
+            max-width: 120px;
+            max-height: 100px;
+            object-fit: contain;
+        }
+
+        .letterhead-reference {
+            margin-top: 8px;
+            font-weight: 600;
+        }
+
+        @media print {
+            .official-letterhead {
+                grid-template-columns: 1fr 120px 1fr;
+                gap: 8px;
+            }
+
+            .letterhead-block {
+                font-size: 9px;
+            }
+        }
+
+    </style>
+</head>
+
+<body>
+
+<nav class="navbar navbar-dark px-3 px-lg-4 no-print"
+     style="background:#10243a;">
+    <a class="navbar-brand fw-bold"
+       href="{% url 'core:booking_admin_home' %}">KOIS</a>
+
+    <div class="d-flex align-items-center gap-3">
+        <span class="text-white small">
+            {{ request.user.username }}
+        </span>
+
+        <form method="post" action="{% url 'core:logout' %}">
+            {% csrf_token %}
+            <button class="btn btn-outline-light btn-sm" type="submit">
+                Logout
+            </button>
+        </form>
+    </div>
+</nav>
+
+<div class="container-fluid px-3 px-lg-4 py-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-4 no-print">
+        <div>
+            <h2 class="report-title mb-1">Flight Passenger Reports</h2>
+            <p class="text-muted mb-0">
+                Search aircraft and generate passenger manifest reports.
+            </p>
+        </div>
+
+        <a href="{% url 'core:booking_admin_home' %}"
+           class="btn btn-outline-secondary">
+            Back to Dashboard
+        </a>
+    </div>
+
+    {% if messages %}
+        <div class="no-print">
+            {% for message in messages %}
+                <div class="alert alert-info alert-dismissible fade show">
+                    {{ message }}
+                    <button type="button" class="btn-close"
+                            data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <!-- Search and flight selection -->
+    <div class="card shadow-sm mb-4 no-print">
+        <div class="card-header bg-white py-3">
+            <strong>Find a Flight</strong>
+        </div>
+
+        <div class="card-body">
+            <form method="get" action="{% url 'core:flight_reports' %}">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-5">
+                        <label for="q" class="form-label">
+                            Aircraft Name or Tail Number
+                        </label>
+                        <input type="text"name="q"id="q"class="form-control" value="{{ search_query }}"placeholder="e.g. C-27J or KAF123">
+                    </div>
+
+                    <div class="col-md-5">
+                        <label for="route" class="form-label">
+                            Select Flight / Route
+                        </label>
+                        <select name="route" id="route"
+                                class="form-select">
+                            <option value="">Choose a flight</option>
+
+                            {% for route in routes %}
+                                <option value="{{ route.id }}"
+                                    {% if selected_route and route.id == selected_route.id %}
+                                        selected
+                                    {% endif %}>
+                                    {{ route.aircraft.name }}
+                                    ({{ route.aircraft.tail_number }}) —
+                                    {{ route.departure_airport }} to
+                                    {{ route.destination_airport }} —
+                                    {{ route.departure_datetime|date:"d M Y H:i" }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label for="status" class="form-label">Booking Status</label>
+                        <select name="status" id="status" class="form-select">
+                            <option value="ALL"
+                                {% if selected_status == "ALL" %}selected{% endif %}>
+                                All Statuses
+                            </option>
+                            <option value="APPROVED"
+                                {% if selected_status == "APPROVED" %}selected{% endif %}>
+                                Approved
+                            </option>
+                            <option value="PENDING"
+                                {% if selected_status == "PENDING" %}selected{% endif %}>
+                                Pending
+                            </option>
+                            <option value="CANCELLED"
+                                {% if selected_status == "CANCELLED" %}selected{% endif %}>
+                                Cancelled
+                            </option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-primary w-100">
+                            Search Report
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mt-3">
+                    <a href="{% url 'core:flight_reports' %}"
+                       class="btn btn-sm btn-outline-secondary">
+                        Clear Search
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% if selected_route %}
+
+        <!-- Printable report heading -->
+        
+        <div class="official-letterhead">
+
+            <!-- LEFT: Correspondence details -->
+            <div class="letterhead-block letterhead-left">
+                <div><strong>Telegrams:</strong>"KAF" Nairobi</div>
+                <div><strong>Telephone:</strong>(020) 123456</div>
+                <div><strong>Extension:</strong> 4567</div>
+                <div><strong>Fax:</strong> 6765</div>
+                <div><strong>E-mail:</strong>kenyaf@kaf.go.ke</div>
+
+                <div class="letterhead-reference">
+                    When replying please quote Ref: 34566
+                </div>
+
+                <div><strong>Date:</strong> {{ report_date|date:"d F Y" }}</div>
+            </div>
+
+            <!-- CENTRE: KOIS logo -->
+            <div class="letterhead-center">
+                <img src="{% static 'images/kois-logo.png' %}"
+                    alt="KOIS Logo"
+                    class="kois-logo">
+                <div><strong>KOIS</strong></div>
+            </div>
+
+            <!-- RIGHT: Headquarters address -->
+            <div class="letterhead-block letterhead-right">
+                <strong>HEADQUARTERS</strong>
+                <div>Kenya Air Force</div>
+                <div>P.O. Box 5556</div>
+                <div>Nairobi</div>
+                <div>Kenya</div>
+            </div>
+
+        </div>
+
+        <div class="text-center mb-4">
+            <h4 class="report-title mb-1"> PASSENGER MANIFEST</h4>
+            <div>{{ selected_route.aircraft.name }}
+                {{ selected_route.aircraft.tail_number }}
+                <strong>From:</strong>{{ selected_route.departure_airport }}
+                <strong>To:</strong>   {{ selected_route.destination_airport }}</div>
+        </div>
+
+        <div class="row g-3 mb-4">
+            <div class="col-md-6">
+                
+                <p class="mb-1">
+                    <strong>Passenger Capacity:</strong>
+                    {{ selected_route.aircraft.passenger_capacity }}
+                </p>
+                <p class="mb-1">
+                    <strong>Booking Status Filter:</strong>
+                    {{ selected_status }}
+                </p>
+            </div>
+            
+
+            <div class="col-md-6">
+                <p class="mb-1">
+                    <strong>Departure Date &amp; Time:</strong>
+                    {{ selected_route.departure_datetime|date:"d M Y, H:i" }}
+                </p>
+                <p class="mb-1">
+                    <strong>Arrival Date &amp; Time:</strong>
+                    {{ selected_route.arrival_datetime|date:"d M Y, H:i" }}
+                </p>
+                
+            </div>
+        </div>
+
+        <!-- Summary figures -->
+        
+        <!-- Passenger manifest table -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-white py-22 d-flex justify-content-between">
+                <strong>Passenger Details</strong>
+                <span class="text-muted small">
+                    {{ passenger_count }} passenger booking(s)
+                </span>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-bordered table-striped report-table mb-0">
+                    <thead>
+                        <tr>
+                            <th>No.</th>
+                            <th>Service Number</th>
+                            <th>Rank</th>
+                            <th>Passenger Name</th>
+                            <th>Appointment</th>
+                            <th>Passenger Weight (Lbs)</th>
+                            <th>Luggage Items</th>
+                            <th>Luggage Weight (Lbs)</th>
+                            <!-- <th>Booking Status</th> -->
+                        
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {% for booking in bookings %}
+                            <tr>
+                                <td>{{ forloop.counter }}</td>
+                                <td>{{ booking.service_number }}</td>
+                                <td>{{ booking.rank|default:"—" }}</td>
+                                <td>{{ booking.passenger_full_name }}</td>
+                                <td>{{ booking.appointment|default:"—" }}</td>
+
+                                <td>
+                                    {% if booking.passenger_weight_kg != None %}
+                                        {{ booking.passenger_weight_kg|floatformat:2 }}
+                                    {% else %}
+                                        Not recorded
+                                    {% endif %}
+                                </td>
+
+                                <td>{{ booking.luggage_count }}</td>
+                                <td>{{ booking.luggage_weight_kg|floatformat:2 }}</td>
+
+                                <!-- <td>
+                                    {% if booking.status == "APPROVED" %}
+                                        <span class="badge text-bg-success">Approved</span>
+                                    {% else %}
+                                        <span class="badge text-bg-warning">Pending</span>
+                                    {% endif %}
+                                </td> -->
+
+                                
+                            </tr>
+                        <!-- {% empty %}
+                            <tr>
+                                <td colspan="9" class="text-center py-4">
+                                  No bookings match the selected flight and status.
+                                </td>
+                            </tr>
+                        {% endfor %} -->
+                    </tbody>
+
+                    <tfoot>
+                        <tr class="table-light fw-bold">
+                            <td colspan="5">TOTALS</td>
+                            <td>{{ total_passenger_weight|floatformat:2 }} Lbs</td>
+                            <td>{{ total_luggage_count }}</td>
+                            <td>{{ total_luggage_weight|floatformat:2 }} Lbs</td>
+                            <td colspan="2"></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+        <div class="row g-3 mb-2">
+            <div class="col-sm-3 col-lg-3">
+                <div class="card summary-card shadow-sm">
+                    <div class="card-body">
+                        <div class="text-muted">Passengers on Board</div>
+                        <div class="summary-value">{{ passenger_count }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-sm-3 col-lg-3">
+                <div class="card summary-card shadow-sm">
+                    <div class="card-body">
+                        <div class="text-muted">Number of Luggage Items</div>
+                        <div class="summary-value">{{ total_luggage_count }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-sm-3 col-lg-3">
+                <div class="card summary-card shadow-sm">
+                    <div class="card-body">
+                        <div class="text-muted">TotalWeight Passenger </div>
+                        <div class="summary-value">
+                            {{ total_passenger_weight|floatformat:2 }} Lbs
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-sm-3 col-lg-3">
+                <div class="card summary-card shadow-sm">
+                    <div class="card-body">
+                        <div class="text-muted">Total Luggage Weight</div>
+                        <div class="summary-value">
+                            {{ total_luggage_weight|floatformat:2 }} Lbs
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Authorization and printing -->
+        <div class="signature-section card shadow-sm mb-4">
+            <div class="card-header bg-white py-3">
+                <strong>Authorization and Report Certification</strong>
+            </div>
+
+            <div class="card-body">
+                <div class="row g-4">
+                    <div class="col-md-6">
+                        <p><strong>Authorizing Officer(s):</strong></p>
+
+                        {% for booking in bookings %}
+                            {% if booking.authorizing_staff %}
+                                <div>
+                                    {{ booking.authorizing_staff.username }}
+                                    — {{ booking.get_status_display }}
+                                </div>
+                            {% endif %}
+                        {% empty %}
+                            <p>No passenger booking records.</p>
+                        {% endfor %}
+
+                        <div class="mt-4">
+                            <div class="signature-line"></div>
+                            <div>Signature of Authorizing Officer</div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <p>
+                            <strong>Report Prepared By:</strong>
+                            {{ report_prepared_by.username }}
+                        </p>
+
+                        <div class="mt-4">
+                            <div class="signature-line"></div>
+                            <div>Signature of Reporting Officer</div>
+                        </div>
+
+                        <p class="mt-4 mb-1">
+                            <strong>Date &amp; Time Printed:</strong>
+                            <span id="print-date">Will be recorded when printed</span>
+                        </p>
+                    </div>
+                </div>
+
+                <p class="small text-muted mt-4 mb-0">
+                    This report reflects KOIS booking records at the time it
+                    was generated. Verify passenger and weight details before
+                    operational use.
+                </p>
+            </div>
+        </div>
+
+        <div class="text-end mb-4 no-print">
+            <button type="button" class="btn btn-primary"
+                    onclick="printReport()">
+                Print / Save as PDF
+            </button>
+        </div>
+
+    {% else %}
+        <div class="card shadow-sm">
+            <div class="card-body text-center py-5">
+                <h5>Select a Flight to Generate a Report</h5>
+                <p class="text-muted mb-0">
+                    Search by aircraft name or tail number, then choose a
+                    flight from the list and click Search Report.
+                </p>
+            </div>
+        </div>
+    {% endif %}
+
+</div>
+
+<script>
+    function printReport() {
+        const now = new Date();
+
+        document.getElementById("print-date").textContent =
+            now.toLocaleString();
+
+        window.print();
+    }
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
