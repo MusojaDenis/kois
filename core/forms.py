@@ -3,6 +3,11 @@ from django import forms
 from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import UserCreationForm
 
+# added for ops
+from django import forms
+from .models import FlightRecord, FlightRoute
+# end
+
 from .models import UserProfile
 
 User = get_user_model()
@@ -146,3 +151,128 @@ class KOISLoginForm(forms.Form):
             }
         ),
     )
+
+# added for ops
+
+
+
+class FlightRecordForm(forms.ModelForm):
+    class Meta:
+        model = FlightRecord
+        fields = [
+            "route",
+            "crew_names",
+            "student_names",
+            "passenger_names",
+            "officer_name_initial",
+            "captain_name_initial",
+            "actual_takeoff",
+            "actual_landing",
+            "day_hours",
+            "night_hours",
+            "instrument_flying",
+            "approach_aid",
+            "pax",
+            "frt",
+            "xty",
+            "xx",
+            "remarks",
+            "number_of_landings",
+            "captains_initials",
+        ]
+
+        widgets = {
+            "route": forms.Select(attrs={
+                "class": "form-select",
+            }),
+            "crew_names": forms.Textarea(attrs={
+                "class": "form-control",
+                "rows": 2,
+                "placeholder": "Enter crew names",
+            }),
+            "student_names": forms.Textarea(attrs={
+                "class": "form-control",
+                "rows": 2,
+                "placeholder": "Enter student names",
+            }),
+            "passenger_names": forms.Textarea(attrs={
+                "class": "form-control",
+                "rows": 2,
+                "placeholder": "Enter passenger names",
+            }),
+            "officer_name_initial": forms.TextInput(attrs={
+                "class": "form-control",
+                "placeholder": "Officer name and initial",
+            }),
+            "captain_name_initial": forms.TextInput(attrs={
+                "class": "form-control",
+                "placeholder": "Captain name and initial",
+            }),
+            "actual_takeoff": forms.DateTimeInput(attrs={
+                "class": "form-control",
+                "type": "datetime-local",
+            }),
+            "actual_landing": forms.DateTimeInput(attrs={
+                "class": "form-control",
+                "type": "datetime-local",
+            }),
+            "day_hours": forms.NumberInput(attrs={
+                "class": "form-control",
+                "min": "0",
+                "step": "0.01",
+            }),
+            "night_hours": forms.NumberInput(attrs={
+                "class": "form-control",
+                "min": "0",
+                "step": "0.01",
+            }),
+            "instrument_flying": forms.Select(attrs={
+                "class": "form-select",
+            }),
+            "approach_aid": forms.Select(attrs={
+                "class": "form-select",
+            }),
+            "pax": forms.NumberInput(attrs={
+                "class": "form-control", "min": "0",
+            }),
+            "frt": forms.NumberInput(attrs={
+                "class": "form-control", "min": "0",
+            }),
+            "xty": forms.NumberInput(attrs={
+                "class": "form-control", "min": "0",
+            }),
+            "xx": forms.NumberInput(attrs={
+                "class": "form-control", "min": "0",
+            }),
+            "remarks": forms.Textarea(attrs={
+                "class": "form-control", "rows": 3,
+            }),
+            "number_of_landings": forms.NumberInput(attrs={
+                "class": "form-control", "min": "0",
+            }),
+            "captains_initials": forms.TextInput(attrs={
+                "class": "form-control",
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["route"].queryset = (
+            FlightRoute.objects
+            .filter(is_active=True, aircraft__is_active=True)
+            .select_related("aircraft")
+            .order_by("departure_datetime")
+        )
+
+    def clean(self):
+        cleaned = super().clean()
+        takeoff = cleaned.get("actual_takeoff")
+        landing = cleaned.get("actual_landing")
+
+        if takeoff and landing and landing < takeoff:
+            self.add_error(
+                "actual_landing",
+                "Actual landing cannot be before actual take-off.",
+            )
+
+        return cleaned

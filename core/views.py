@@ -9,6 +9,19 @@ from django.shortcuts import get_object_or_404, redirect, render
 from .models import Booking, FlightRoute, UserProfile,Aircraft,OfficialSeatReservation
 from .forms import KOISLoginForm, KOISSignUpForm
 
+# added forms 
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import render, redirect
+from django.utils import timezone
+
+from .models import (
+    FlightRecord,
+    FlightRoute,
+    UserProfile,
+)
+from .forms import FlightRecordForm
+# end of forms
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db.models import Count, Q,Sum
 from django.contrib.auth import get_user_model
@@ -974,5 +987,100 @@ def release_official_seat_reservation(request, reservation_id):
     return redirect("core:official_seat_reservations")
 
 
+# added for forms ops
+
+
+
+@login_required
+def flight_record_create(request):
+    profile = get_profile(request.user)
+
+    permitted = (
+        request.user.is_superuser
+        or profile.role in [
+            UserProfile.Role.ADMIN,
+            UserProfile.Role.FLIGHTOPS,
+        ]
+    )
+
+    if not permitted:
+        messages.error(
+            request,
+            "You are not authorised to create flight records.",
+        )
+        return redirect("core:home")
+
+    if request.method == "POST":
+        form = FlightRecordForm(request.POST)
+
+        if form.is_valid():
+            record = form.save(commit=False)
+            record.created_by = request.user
+
+            # Fetch identity details from the authenticated account.
+            record.service_number = request.user.username
+            record.rank = profile.get_rank_display()
+            record.personnel_name = (
+                profile.full_name
+                or " ".join(
+                    part for part in [
+                        profile.first_name or request.user.first_name,
+                        profile.middle_name,
+                        profile.last_name or request.user.last_name,
+                    ]
+                    if part
+                )
+            )
+
+            record.save()
+
+            messages.success(
+                request,
+                "Flight record saved successfully.",
+            )
+            return redirect("core:flight_record_create")
+    else:
+        form = FlightRecordForm()
+
+    routes = (
+        FlightRoute.objects
+        .filter(
+            is_active=True,
+            aircraft__is_active=True,
+            departure_datetime__gt=timezone.now(),
+        )
+        .select_related("aircraft")
+        .order_by("departure_datetime")
+    )
+
+    route_details = [
+        {
+            "id": route.pk,
+            "aircraft": route.aircraft.name,
+            "tail_number": route.aircraft.tail_number,
+            "departure": route.departure_airport,
+            "destination": route.destination_airport,
+            "departure_time": route.departure_datetime.isoformat(),
+            "arrival_time": route.arrival_datetime.isoformat(),
+        }
+        for route in routes
+    ]
+
+    return render(
+        request,
+        "core/flight_record_form.html",
+        {
+            "form": form,
+            "profile": profile,
+            "service_number": request.user.username,
+            "personnel_name": (
+                profile.full_name
+                or request.user.get_full_name()
+                or request.user.username
+            ),
+            "rank_display": profile.get_rank_display(),
+            "route_details": route_details,
+        },
+    )
 
 
