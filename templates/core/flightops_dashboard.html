@@ -1,30 +1,137 @@
 
-{% extends "core/dashboard_base.html" %}
 
-{% block dashboard_content %}
-<div class="row g-4 mt-2">
-    <div class="col-md-6 col-xl-4">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body p-4">
-                <h5>Flight Authorizations</h5>
-                <p class="text-secondary">
-                    Submit and track flight authorization requests.
-                </p>
-                <span class="badge text-bg-primary">Module ready for development</span>
-            </div>
-        </div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Book a Flight | KOIS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+          rel="stylesheet">
+    <style>
+        body { background: #f4f6f9; }
+        .navbar { background: #12345a; }
+        .sidebar { min-height: calc(100vh - 56px); background: #172b4d; }
+        .sidebar a { display: block; color: white; padding: 12px 18px; text-decoration: none; }
+        .sidebar a:hover, .sidebar a.active { background: #284a76; }
+        .content { padding: 25px; }
+    </style>
+</head>
+<body>
+<nav class="navbar navbar-dark px-3">
+    <a class="navbar-brand fw-bold" href="{% url 'core:manifest_flights' %}">KOIS</a>
+    <div class="d-flex align-items-center gap-3 text-white">
+        <span>Service No: {{ request.user.username }}</span>
+        <form method="post" action="{% url 'core:logout' %}" class="m-0">
+            {% csrf_token %}
+            <button class="btn btn-outline-light btn-sm" type="submit">Logout</button>
+        </form>
     </div>
+</nav>
 
-    <div class="col-md-6 col-xl-4">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body p-4">
-                <h5>Flight Hours</h5>
-                <p class="text-secondary">
-                    Record flight times and calculate duration.
-                </p>
-                <span class="badge text-bg-primary">Module ready for development</span>
-            </div>
-        </div>
+<div class="container-fluid">
+    <div class="row">
+        <aside class="col-md-2 sidebar px-0">
+            <!-- <a href="{% url 'core:manifest_flights' %}">Flights</a> -->
+            <a class="active" href="{% url 'core:flight_record_create' %}">fly</a>
+
+            <!-- <a href="{% url 'core:my_bookings' %}">Check my flights</a> -->
+        </aside>
+
+        <main class="col-md-10 content">
+            <h2>FLIGHT AUTHORIZATION AND FLYING TIMES</h2>
+            <p class="text-muted">Your identity details are taken from your KOIS account.</p>
+
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-info alert-dismissible fade show">
+                        {{ message }}
+                        <button class="btn-close" type="button" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+
+            <form method="post" class="card shadow-sm">
+                {% csrf_token %}
+                <div class="card-header bg-white fw-bold">Passenger Details</div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Service Number</label>
+                            <input class="form-control" value="{{ service_number }}" readonly>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Rank</label>
+ 
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">First Name</label>
+                            <input class="form-control" value="{{ first_name }}" readonly>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Middle Name</label>
+                            <input class="form-control" value="{{ middle_name|default:'—' }}" readonly>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Last Name</label>
+                            <input class="form-control" value="{{ last_name }}" readonly>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="appointment" class="form-label">Appointment / Purpose</label>
+                            <input id="appointment" name="appointment" class="form-control"
+                                   maxlength="150" placeholder="Enter appointment or purpose">
+                        </div>
+
+                        <div class="col-12">
+                            <label for="route" class="form-label">Select Flight and Route</label>
+                            <select id="route" name="route" class="form-select" required>
+                                <option value="">-- Select an available flight --</option>
+                                {% for route in routes %}
+                                    {% if route.available_seats > 0 %}
+                                        <option value="{{ route.id }}"
+                                            {% if request.GET.route == route.id|stringformat:"s" %}selected{% endif %}>
+                                            {{ route.aircraft.name }} ({{ route.aircraft.tail_number }}) —
+                                            {{ route.departure_airport }} to {{ route.destination_airport }} —
+                                            {{ route.departure_datetime|date:"d M Y, H:i" }} —
+                                            {{ route.available_seats }} seats available
+                                        </option>
+                                    {% endif %}
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="passenger_weight_kg" class="form-label">Passenger Weight (kg)</label>
+                            <input id="passenger_weight_kg" name="passenger_weight_kg"
+                                   type="number" min="0" step="0.01" class="form-control"
+                                   placeholder="Leave blank if not available">
+                            <div class="form-text">Leave blank to record passenger weight as N/A.</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="luggage_count" class="form-label">Number of Luggage Items</label>
+                            <input id="luggage_count" name="luggage_count" type="number"
+                                   min="0" step="1" value="0" class="form-control" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="luggage_weight_kg" class="form-label">Total Luggage Weight (kg)</label>
+                            <input id="luggage_weight_kg" name="luggage_weight_kg"
+                                   type="number" min="0" step="0.01" value="0"
+                                   class="form-control" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer bg-white d-flex justify-content-between">
+                    <a href="{% url 'core:manifest_flights' %}" class="btn btn-outline-secondary">
+                        Back to Flights
+                    </a>
+                    <button type="submit" class="btn btn-primary">
+                        Submit Booking Request
+                    </button>
+                </div>
+            </form>
+        </main>
     </div>
 </div>
-{% endblock %}
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

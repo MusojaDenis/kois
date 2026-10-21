@@ -2,6 +2,9 @@
 from django.contrib import admin
 from .models import UserProfile, Aircraft, FlightRoute, Booking
 
+# added for ops
+# from django.contrib import admin
+from .models import FlightRecord
 
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
@@ -79,3 +82,45 @@ class BookingAdmin(admin.ModelAdmin):
         "last_name",
     )
     readonly_fields = ("ticket_number", "created_at", "updated_at")
+
+    # added for flight ops
+
+
+
+
+@admin.register(FlightRecord)
+class FlightRecordAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "route",
+        "service_number",
+        "officer_name_initial",
+        "captain_name_initial",
+        "actual_takeoff",
+        "actual_landing",
+        "created_at",
+    )
+
+    list_filter = (
+        "instrument_flying",
+        "approach_aid",
+        "created_at",
+    )
+
+    search_fields = (
+        "service_number",
+        "personnel_name",
+        "officer_name_initial",
+        "captain_name_initial",
+        "remarks",
+    )
+
+    readonly_fields = (
+        "created_by",
+        "service_number",
+        "rank",
+        "personnel_name",
+        "created_at",
+        "updated_at",
+    )
+
