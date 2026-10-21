@@ -58,7 +58,7 @@
             <form method="post">
                 {% csrf_token %}
 
-                <h2 class="section-title">1. Personnel Details</h2>
+                <!-- <h2 class="section-title">1. Personnel Details</h2>
                 <div class="row g-3">
                     <div class="col-md-4">
                         <label class="form-label">Service Number</label>
@@ -75,55 +75,75 @@
                         <input class="form-control readonly-field"
                                value="{{ personnel_name }}" readonly>
                     </div>
-                </div>
+                </div> -->
+                      <!-- add flight route -->
+                    <h2 class="section-title">1. Aircraft, Flight and Route</h2>
 
-                <h2 class="section-title">2. Aircraft, Flight and Route</h2>
-                <div class="mb-3">
-                    <label for="{{ form.route.id_for_label }}"
-                           class="form-label">Select Flight / Route</label>
-                    {{ form.route }}
-                    {{ form.route.errors }}
-                </div>
+<div class="row g-3">
 
-                <div class="row g-3">
-                    <div class="col-md-4">
-                        <label class="form-label">Aircraft</label>
-                        <input id="aircraft" class="form-control readonly-field"
-                               readonly>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Tail Number</label>
-                        <input id="tail-number"
-                               class="form-control readonly-field" readonly>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Departure Airport</label>
-                        <input id="departure"
-                               class="form-control readonly-field" readonly>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Destination Airport</label>
-                        <input id="destination"
-                               class="form-control readonly-field" readonly>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Scheduled Departure</label>
-                        <input id="scheduled-departure"
-                               class="form-control readonly-field" readonly>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Scheduled Arrival</label>
-                        <input id="scheduled-arrival"
-                               class="form-control readonly-field" readonly>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Scheduled Duration</label>
-                        <input id="scheduled-duration"
-                               class="form-control readonly-field" readonly>
-                    </div>
-                </div>
+    <div class="col-md-6">
+        <label for="id_route" class="form-label">Flight Route</label>
+        <select id="id_route" name="route" class="form-select" required>
+            <option value="">-- Select Flight Route --</option>
+            {% for route in routes %}
+                <option value="{{ route.id }}"
+                    {% if form.route.value|stringformat:"s" == route.id|stringformat:"s" %}
+                        selected
+                    {% endif %}>
+                    {{ route.departure_airport }}
+                    →
+                    {{ route.destination_airport }}
+                    | {{ route.departure_datetime|date:"d M Y H:i" }}
+                </option>
+            {% endfor %}
+        </select>
+    </div>
 
-                <h2 class="section-title">3. Crew, Students and Passengers</h2>
+    <div class="col-md-6">
+        <label class="form-label">Aircraft</label>
+        <input type="text" id="aircraft_name"
+               class="form-control" readonly>
+    </div>
+
+    <div class="col-md-6">
+        <label class="form-label">Aircraft Tail Number</label>
+        <input type="text" id="tail_number"
+               class="form-control" readonly>
+    </div>
+
+    <div class="col-md-6">
+        <label class="form-label">Departure Airport</label>
+        <input type="text" id="departure_airport"
+               class="form-control" readonly>
+    </div>
+
+    <div class="col-md-6">
+        <label class="form-label">Destination Airport</label>
+        <input type="text" id="destination_airport"
+               class="form-control" readonly>
+    </div>
+
+    <div class="col-md-6">
+        <label class="form-label">Scheduled Departure</label>
+        <input type="datetime-local" id="scheduled_departure"
+               class="form-control" readonly>
+    </div>
+
+    <div class="col-md-6">
+        <label class="form-label">Scheduled Arrival</label>
+        <input type="datetime-local" id="scheduled_arrival"
+               class="form-control" readonly>
+    </div>
+
+    <div class="col-md-6">
+        <label class="form-label">Scheduled Flight Duration</label>
+        <input type="text" id="scheduled_duration"
+               class="form-control" readonly>
+    </div>
+
+</div>
+
+                <h2 class="section-title">2. Pilot, Students and Passengers</h2>
                 <div class="row g-3">
                     <div class="col-md-4">
                         <label class="form-label">Names of Crew</label>
@@ -152,7 +172,7 @@
                     </div>
                 </div>
 
-                <h2 class="section-title">4. Actual Flight Times</h2>
+                <h2 class="section-title">3. Actual Flight Times</h2>
                 <div class="row g-3">
                     <div class="col-md-4">
                         <label class="form-label">Actual Time of Take-off</label>
@@ -172,7 +192,7 @@
                     </div>
                 </div>
 
-                <h2 class="section-title">5. Flight Hours and Conditions</h2>
+                <h2 class="section-title">4. Flight Hours and Conditions</h2>
                 <div class="row g-3">
                     <div class="col-md-3">
                         <label class="form-label">Day Hours</label>
@@ -196,7 +216,7 @@
                     </div>
                 </div>
 
-                <h2 class="section-title">6. Extra Requirements</h2>
+                <h2 class="section-title">5. Extra Requirements</h2>
                 <div class="row g-3">
                     <div class="col-md-3">
                         <label class="form-label">PAX</label>
@@ -220,7 +240,7 @@
                     </div>
                 </div>
 
-                <h2 class="section-title">7. Remarks and Landings</h2>
+                <h2 class="section-title">6. Remarks and Landings</h2>
                 <div class="row g-3">
                     <div class="col-md-8">
                         <label class="form-label">Remarks</label>
@@ -252,6 +272,40 @@
         </div>
     </div>
 </main>
+
+{{ route_details|json_script:"route-details-data" }}
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const routeSelect = document.getElementById("id_route");
+    const routeDetails = JSON.parse(
+        document.getElementById("route-details-data").textContent
+    );
+
+    function fetchRouteDetails() {
+        const route = routeDetails[routeSelect.value];
+
+        const fields = {
+            aircraft_name: route?.aircraft || "",
+            tail_number: route?.tail_number || "",
+            departure_airport: route?.departure || "",
+            destination_airport: route?.destination || "",
+            scheduled_departure: route?.scheduled_departure || "",
+            scheduled_arrival: route?.scheduled_arrival || "",
+            scheduled_duration: route?.duration || ""
+        };
+
+        Object.entries(fields).forEach(([id, value]) => {
+            document.getElementById(id).value = value;
+        });
+    }
+
+    routeSelect.addEventListener("change", fetchRouteDetails);
+
+    // Populate details if a route was already selected.
+    fetchRouteDetails();
+});
+</script>
 
 {{ route_details|json_script:"route-details-data" }}
 

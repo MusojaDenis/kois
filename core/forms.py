@@ -276,3 +276,12 @@ class FlightRecordForm(forms.ModelForm):
             )
 
         return cleaned
+
+    # route
+    class FlightRecordForm(forms.ModelForm):
+      class Meta:
+        model = FlightRecord
+        fields = [
+            "route",
+            # Keep the rest of your existing fields here.
+        ]

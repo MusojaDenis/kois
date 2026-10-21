@@ -1,3 +1,6 @@
 virtual/
 .pys/
 db.sqlite3
+_pycache__/
+_init__.py
+

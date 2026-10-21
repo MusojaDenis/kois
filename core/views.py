@@ -1083,4 +1083,67 @@ def flight_record_create(request):
         },
     )
 
+# route added
+from django.shortcuts import render, redirect
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+
+from .models import FlightRoute
+from .forms import FlightRecordForm
+
+
+@login_required
+def flight_record_create(request):
+    routes = (
+        FlightRoute.objects
+        .filter(is_active=True, aircraft__is_active=True)
+        .select_related("aircraft")
+        .order_by("departure_datetime")
+    )
+
+    if request.method == "POST":
+        form = FlightRecordForm(request.POST)
+
+        if form.is_valid():
+            record = form.save(commit=False)
+            record.created_by = request.user
+
+            # Keep your existing profile and identity assignments here.
+            record.save()
+
+            messages.success(request, "Flight record saved successfully.")
+            return redirect("flight_record_create")
+    else:
+        form = FlightRecordForm()
+
+    route_details = {}
+
+    for route in routes:
+        duration = route.arrival_datetime - route.departure_datetime
+
+        route_details[str(route.id)] = {
+            "aircraft": route.aircraft.name,
+            "tail_number": route.aircraft.tail_number,
+            "departure": route.departure_airport,
+            "destination": route.destination_airport,
+            "scheduled_departure": route.departure_datetime.strftime(
+                "%Y-%m-%dT%H:%M"
+            ),
+            "scheduled_arrival": route.arrival_datetime.strftime(
+                "%Y-%m-%dT%H:%M"
+            ),
+            "duration": str(duration),
+        }
+
+    return render(
+        request,
+        "core/flight_record_form.html",
+        {
+            "form": form,
+            "routes": routes,
+            "route_details": route_details,
+        },
+    )
+
+
 
