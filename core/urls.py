@@ -36,5 +36,10 @@ path(
     views.release_official_seat_reservation,
     name="release_official_seat_reservation",
 ),
+path(
+    "booking-admin/reports/",
+    views.flight_reports,
+    name="flight_reports",
+),
 
 ]
