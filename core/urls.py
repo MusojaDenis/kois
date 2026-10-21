@@ -2,6 +2,11 @@
 from django.urls import path
 from . import views
 
+# added for urls ops
+# from django.urls import path
+# from . import views
+# end
+
 app_name = "core"
 
 urlpatterns = [
@@ -36,5 +41,18 @@ path(
     views.release_official_seat_reservation,
     name="release_official_seat_reservation",
 ),
+
+
+# added URL for flight ops
+
+
+
+
+    path(
+        "flight-record/new/",
+        views.flight_record_create,
+        name="flight_record_create",
+    ),
+
 
 ]

@@ -11,7 +11,22 @@ https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 import os
 from pathlib import Path
-from dotenv import load_dotenv
+
+def load_dotenv(path):
+    """Load simple KEY=VALUE entries without requiring python-dotenv."""
+    if not path.exists():
+        return
+
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        os.environ.setdefault(key, value)
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -90,6 +105,8 @@ DATABASES = {
         "PORT": os.getenv("DB_PORT", "5432"),
     }
 }
+
+
 
 
 # Password validation
