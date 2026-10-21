@@ -1,6 +1,10 @@
 virtual/
 .pys/
 db.sqlite3
-_pycache__/
 _init__.py
-
+.env
+envy/
+__pycache__/
+*.py[cod]
+staticfiles/
+media/
