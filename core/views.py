@@ -1235,3 +1235,7 @@ def flight_record_create(request):
             "route_details": route_details,
         },
 )
+
+# def about_kois(request):
+#     """Display information about the KOIS flight operations system."""
+#     return render(request, "core/about.html")
