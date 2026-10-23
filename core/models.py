@@ -7,6 +7,10 @@ from django.db import models
 from django.db.models import Q, Count, Sum
 from django.utils import timezone
 
+# added for ops
+# from django.conf import settings
+# from django.core.validators import MinValueValidator
+# from django.db import models
 
 class UserProfile(models.Model):
 
@@ -312,3 +316,110 @@ class OfficialSeatReservation(models.Model):
         return (
             f"{self.route} - {self.seats_reserved} official seats"
         )
+# added
+
+
+
+
+class FlightRecord(models.Model):
+    class InstrumentFlying(models.TextChoices):
+        SIM = "SIM", "Simulator (SIM)"
+        ACT = "ACT", "Actual (ACT)"
+
+    class ApproachAid(models.TextChoices):
+        AIDED = "AIDED", "Aided"
+        MANUAL = "MANUAL", "Manual"
+
+    route = models.ForeignKey(
+        "FlightRoute",
+        on_delete=models.PROTECT,
+        related_name="flight_records",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="created_flight_records",
+    )
+
+    # Automatically recorded from the logged-in account.
+    service_number = models.CharField(max_length=150)
+    rank = models.CharField(max_length=50, blank=True)
+    personnel_name = models.CharField(max_length=300, blank=True)
+
+    # Crew, students and passengers.
+    crew_names = models.TextField(blank=True)
+    student_names = models.TextField(blank=True)
+    passenger_names = models.TextField(blank=True)
+
+    # Officer and captain.
+    officer_name_initial = models.CharField(max_length=200)
+    captain_name_initial = models.CharField(max_length=200)
+
+    # Actual operational times.
+    actual_takeoff = models.DateTimeField(
+        null=True, blank=True
+    )
+    actual_landing = models.DateTimeField(
+        null=True, blank=True
+    )
+
+    # Flight hours entered by authorised personnel.
+    day_hours = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0,
+        validators=[MinValueValidator(0)],
+    )
+    night_hours = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0,
+        validators=[MinValueValidator(0)],
+    )
+
+    instrument_flying = models.CharField(
+        max_length=3,
+        choices=InstrumentFlying.choices,
+    )
+    approach_aid = models.CharField(
+        max_length=6,
+        choices=ApproachAid.choices,
+    )
+
+    # Extra requirements / quantities.
+    pax = models.PositiveIntegerField(default=0)
+    frt = models.PositiveIntegerField(default=0)
+    xty = models.PositiveIntegerField(default=0)
+    xx = models.PositiveIntegerField(default=0)
+
+    remarks = models.TextField(blank=True)
+    number_of_landings = models.PositiveIntegerField(default=0)
+    captains_initials = models.CharField(max_length=30)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return (
+            f"{self.route} - "
+            f"Flight record {self.pk or 'new'}"
+        )
+
+    @property
+    def scheduled_duration_minutes(self):
+        delta = (
+            self.route.arrival_datetime
+            - self.route.departure_datetime
+        )
+        return max(0, int(delta.total_seconds() // 60))
+
+    @property
+    def actual_duration_minutes(self):
+        if not self.actual_takeoff or not self.actual_landing:
+            return None
+
+        delta = self.actual_landing - self.actual_takeoff
+        return int(delta.total_seconds() // 60)
