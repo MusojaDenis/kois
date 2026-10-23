@@ -95,44 +95,112 @@ class FlightRoute(models.Model):
             f"({self.departure_datetime:%Y-%m-%d %H:%M})"
         )
 
+    # @property
+    # def reserved_seats(self):
+    #     return self.bookings.filter(
+    #         status=Booking.Status.PENDING
+    #     ).count()
+
+    # @property
+    # def occupied_seats(self):
+    #     return self.bookings.filter(
+    #         status=Booking.Status.APPROVED
+    #     ).count()
+
+    
+    # @property
+    # def available_seats(self):
+    #     passenger_bookings = self.bookings.filter(
+    #         status__in=[
+    #             Booking.Status.PENDING,
+    #             Booking.Status.APPROVED,
+    #         ]
+    #     ).count()
+
+    #     official_reservations = (
+    #         self.official_seat_reservations
+    #         .filter(is_active=True)
+    #         .aggregate(total=Sum("seats_reserved"))["total"]
+    #         or 0
+    #     )
+
+    #     remaining = (
+    #         self.aircraft.passenger_capacity
+    #         - passenger_bookings
+    #         - official_reservations
+    #     )
+
+    #     return max(remaining, 0)
+
     @property
     def reserved_seats(self):
-        return self.bookings.filter(
+        # Passenger bookings awaiting approval
+        pending_bookings = self.bookings.filter(
             status=Booking.Status.PENDING
         ).count()
 
+        # Official seats reserved by Booking Administration
+        official_reservations = (
+            self.official_seat_reservations.filter(
+                is_active=True
+            ).aggregate(
+                total=Sum("seats_reserved")
+            )["total"] or 0
+        )
+
+        return pending_bookings + official_reservations
+
     @property
     def occupied_seats(self):
+        # Approved passenger bookings
         return self.bookings.filter(
             status=Booking.Status.APPROVED
         ).count()
 
-    
     @property
     def available_seats(self):
-        passenger_bookings = self.bookings.filter(
-            status__in=[
-                Booking.Status.PENDING,
-                Booking.Status.APPROVED,
-            ]
+        pending_bookings = self.bookings.filter(
+            status=Booking.Status.PENDING
+        ).count()
+
+        approved_bookings = self.bookings.filter(
+            status=Booking.Status.APPROVED
         ).count()
 
         official_reservations = (
-            self.official_seat_reservations
-            .filter(is_active=True)
-            .aggregate(total=Sum("seats_reserved"))["total"]
-            or 0
+            self.official_seat_reservations.filter(
+                is_active=True
+            ).aggregate(
+                total=Sum("seats_reserved")
+            )["total"] or 0
         )
 
         remaining = (
             self.aircraft.passenger_capacity
-            - passenger_bookings
+            - pending_bookings
+            - approved_bookings
             - official_reservations
         )
 
         return max(remaining, 0)
 
+    @property
+    def flight_status(self):
+        # A flight cannot be booked after departure time has passed.
+        if (
+            self.departure_datetime <= timezone.now()
+            or not self.is_active
+            or not self.aircraft.is_active
+        ):
+            return "NOT_AVAILABLE"
 
+        if self.available_seats <= 0:
+            return "FULL"
+
+        # if self.reserved_seats > 0:
+        #     return "RESERVED"
+
+        return "AVAILABLE"
     
 
 

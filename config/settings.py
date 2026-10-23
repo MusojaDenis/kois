@@ -11,27 +11,12 @@ https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 import os
 from pathlib import Path
-
-def load_dotenv(path):
-    """Load simple KEY=VALUE entries without requiring python-dotenv."""
-    if not path.exists():
-        return
-
-    for line in path.read_text().splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip()
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
-            value = value[1:-1]
-        os.environ.setdefault(key, value)
+from dotenv import load_dotenv
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(BASE_DIR / ".env")
+load_dotenv(BASE_DIR / ".env", override=True)
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
