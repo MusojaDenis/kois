@@ -217,6 +217,7 @@
                                 <th rowspan="2">Destination</th>
                                 <th rowspan="2">Departure Time</th>
                                 <th rowspan="2">Arrival Time</th>
+                                <th rowspan="2">Reserved Seats</th>
                                 <th rowspan="2">Available Seats</th>
                                 <!-- Spans across the 3 sub-columns below -->
                                 <th colspan="3" style="text-align: center;">Action</th>
@@ -224,7 +225,7 @@
                             <!-- Second header row defines the sub-actions -->
                             <tr>
                                 <th>Edit</th>
-                                <th>Delete</th>
+                                <th>Suspend</th>
                                 <th>Status</th>
                             </tr>
                         </thead>
@@ -237,6 +238,7 @@
                                     <td>{{ route.destination_airport }}</td>
                                     <td>{{ route.departure_datetime|date:"d M Y H:i" }}</td>
                                     <td>{{ route.arrival_datetime|date:"d M Y H:i" }}</td>
+                                    <td>{{ route.reserved_seats }}</td>
                                     <td>{{ route.available_seats }}</td>
                                     <td>
                                         <a href="#" class="btn btn-sm btn-outline-primary">

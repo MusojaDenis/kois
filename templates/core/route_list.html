@@ -58,14 +58,26 @@
                         <td>{{ route.departure_datetime|date:"d M Y H:i" }}</td>
                         <td>{{ route.arrival_datetime|date:"d M Y H:i" }}</td>
                         <td>{{ route.available_seats }}</td>
-                        <td>{{ route.reserved_seats }}</td>
+                        <td><span class="badge text-bg-warning">
+                                   {{ route.reserved_seats }}
+                                </span></td>
                         <td>
-                            {% if route.flight_status == "FULL" %}
-                                <span class="badge text-bg-danger">Full</span>
+                            {% if route.flight_status == "NOT_AVAILABLE" %}
+                                <span class="badge text-bg-secondary">
+                                    Not Available
+                                </span>
+                            {% elif route.flight_status == "FULL" %}
+                                <span class="badge text-bg-danger">
+                                    Full
+                                </span>
                             {% elif route.flight_status == "RESERVED" %}
-                                <span class="badge text-bg-warning">Reserved seats</span>
+                                <span class="badge text-bg-warning">
+                                    Reserved
+                                </span>
                             {% else %}
-                                <span class="badge text-bg-success">Available</span>
+                                <span class="badge text-bg-success">
+                                    Available
+                                </span>
                             {% endif %}
                         </td>
                     </tr>
