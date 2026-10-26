@@ -6,8 +6,8 @@ from django.views.decorators.http import require_POST
 from django.utils import timezone
 from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
-from .models import Booking, FlightRoute, UserProfile,Aircraft,OfficialSeatReservation
-from .forms import KOISLoginForm, KOISSignUpForm
+from .models import Booking, FlightRoute, UserProfile,Aircraft,OfficialSeatReservation,FlightResponsibility,FlightRecord
+from .forms import KOISLoginForm, KOISSignUpForm,FlightRecordForm
 
 # added forms 
 from django.contrib import messages
@@ -15,12 +15,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect
 from django.utils import timezone
 
-from .models import (
-    FlightRecord,
-    FlightRoute,
-    UserProfile,
-)
-from .forms import FlightRecordForm
+
 # end of forms
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db.models import Count, Q,Sum
@@ -1078,50 +1073,333 @@ def flight_reports(request):
             "report_date": timezone.localdate(),
         }
     )
-# added for forms ops
+def can_access_flightops(user):
+    if not user.is_authenticated:
+        return False
+
+    if user.is_superuser:
+        return True
+
+    try:
+        return user.kois_profile.role in [
+            UserProfile.Role.ADMIN,
+            UserProfile.Role.FLIGHTOPS,
+        ]
+    except UserProfile.DoesNotExist:
+        return False
+
+
+def get_pilot_identity(user):
+    profile = get_profile(user)
+
+    name = (
+        profile.full_name
+        or " ".join(
+            part for part in [
+                profile.first_name or user.first_name,
+                profile.middle_name,
+                profile.last_name or user.last_name,
+            ]
+            if part
+        )
+        or user.get_full_name()
+        or user.username
+    )
+
+    return {
+        "service_number": user.username,
+        "rank": profile.get_rank_display() if profile.rank else "",
+        "pilot_name": name,
+    }
 
 
 
 @login_required
-def flight_record_create(request):
-    profile = get_profile(request.user)
+def flightops_home(request):
+    if not can_access_flightops(request.user):
+        messages.error(
+            request,
+            "You are not authorised to access Flight Operations."
+        )
+        return redirect("core:home")
 
-    permitted = (
-        request.user.is_superuser
-        or profile.role in [
-            UserProfile.Role.ADMIN,
-            UserProfile.Role.FLIGHTOPS,
-        ]
+    upcoming_routes = (
+        FlightRoute.objects
+        .filter(
+            is_active=True,
+            aircraft__is_active=True,
+        )
+        .filter(
+            Q(departure_datetime__gt=timezone.now())
+            | Q(flight_records__isnull=False)
+        )
+        .select_related(
+            "aircraft",
+            "responsibility",
+            "responsibility__pilot",
+        )
+        .distinct()
+        .order_by("departure_datetime")
     )
 
-    if not permitted:
+    # Calculate each route's completion status from saved records.
+    for route in upcoming_routes:
+        record = (
+            FlightRecord.objects
+            .filter(route=route)
+            .order_by("-created_at")
+            .first()
+        )
+
+        if (
+            record
+            and record.actual_takeoff
+            and record.actual_landing
+            and record.actual_landing >= record.actual_takeoff
+        ):
+            route.completion_status = "COMPLETED"
+        else:
+            route.completion_status = "PENDING"
+
+    return render(
+        request,
+        "core/flightops_dashboard.html",
+        {
+            "upcoming_routes": upcoming_routes,
+            "profile": get_profile(request.user),
+        },
+    )
+
+
+
+@login_required
+def flightops_route_detail(request, route_id):
+    if not can_access_flightops(request.user):
+        messages.error(
+            request,
+            "You are not authorised to view flight details."
+        )
+        return redirect("core:home")
+
+    route = get_object_or_404(
+        FlightRoute.objects.select_related("aircraft"),
+        pk=route_id,
+    )
+
+    # Fetch the flight record belonging to THIS route.
+    record = (
+        FlightRecord.objects
+        .filter(route=route)
+        .order_by("-created_at")
+        .first()
+    )
+
+    is_new_record = record is None
+
+    if is_new_record:
+        record = FlightRecord(route=route)
+
+    identity = get_pilot_identity(request.user)
+
+    if request.method == "POST":
+        form = FlightRecordForm(
+            request.POST,
+            instance=record,
+        )
+
+        if form.is_valid():
+            saved_record = form.save(commit=False)
+            saved_record.route = route
+
+            if is_new_record:
+                saved_record.created_by = request.user
+                saved_record.service_number = identity["service_number"]
+                saved_record.rank = identity["rank"]
+                saved_record.personnel_name = identity["pilot_name"]
+
+            if (
+                not saved_record.actual_takeoff
+                or not saved_record.actual_landing
+            ):
+                messages.error(
+                    request,
+                    "Enter both actual take-off and landing times."
+                )
+
+            elif saved_record.actual_landing < saved_record.actual_takeoff:
+                messages.error(
+                    request,
+                    "Actual landing cannot be earlier than take-off."
+                )
+
+            else:
+                saved_record.save()
+
+                messages.success(
+                    request,
+                    "Flight record saved successfully."
+                )
+                return redirect(
+                    "core:flightops_route_detail",
+                    route_id=route.id,
+                )
+
+    else:
+        # Populate all existing values from the database.
+        form = FlightRecordForm(instance=record)
+
+    # Approved passengers for the operational manifest.
+    bookings = (
+        Booking.objects
+        .filter(
+            route=route,
+            status=Booking.Status.APPROVED,
+        )
+        .order_by("last_name", "first_name")
+    )
+
+    totals = bookings.aggregate(
+        passenger_weight=Sum("passenger_weight_kg"),
+        luggage_weight=Sum("luggage_weight_kg"),
+        luggage_count=Sum("luggage_count"),
+    )
+
+    responsibility = (
+        FlightResponsibility.objects
+        .filter(route=route)
+        .select_related("pilot")
+        .first()
+    )
+
+    return render(
+        request,
+        "core/flightops_route_detail.html",
+        {
+            "route": route,
+            "bookings": bookings,
+            "passenger_count": bookings.count(),
+            "total_passenger_weight": totals["passenger_weight"] or 0,
+            "total_luggage_weight": totals["luggage_weight"] or 0,
+            "total_luggage_count": totals["luggage_count"] or 0,
+            "responsibility": responsibility,
+            "form": form,
+            "flight_record": record,
+            "is_new_record": is_new_record,
+            "service_number": identity["service_number"],
+            "rank_display": identity["rank"],
+            "personnel_name": identity["pilot_name"],
+        },
+    )
+
+
+@login_required
+@require_POST
+def take_flight(request, route_id):
+    if not can_access_flightops(request.user):
+        messages.error(
+            request,
+            "You are not authorised to take flight responsibility."
+        )
+        return redirect("core:home")
+
+    with transaction.atomic():
+        route = get_object_or_404(
+            FlightRoute.objects.select_for_update().select_related(
+                "aircraft"
+            ),
+            pk=route_id,
+        )
+
+        if (
+            not route.is_active
+            or not route.aircraft.is_active
+            or route.departure_datetime <= timezone.now()
+        ):
+            messages.error(
+                request,
+                "Responsibility can only be taken for an active "
+                "flight whose departure time has not passed."
+            )
+        else:
+            existing = FlightResponsibility.objects.filter(
+                route=route
+            ).first()
+
+            if existing:
+                messages.warning(
+                    request,
+                    f"This flight has already been taken by "
+                    f"{existing.pilot_name} "
+                    f"({existing.service_number})."
+                )
+            else:
+                identity = get_pilot_identity(request.user)
+
+                FlightResponsibility.objects.create(
+                    route=route,
+                    pilot=request.user,
+                    service_number=identity["service_number"],
+                    rank=identity["rank"],
+                    pilot_name=identity["pilot_name"],
+                )
+
+                messages.success(
+                    request,
+                    f"Responsibility for {route.aircraft.name} "
+                    f"({route.aircraft.tail_number}) has been recorded "
+                    f"under {identity['service_number']} - "
+                    f"{identity['pilot_name']}."
+                )
+
+    # return redirect("core:flight_record_create",route_id=route_id,)
+    return redirect( "core:flight_record_create_for_route", route_id=route_id,
+)
+
+# added for forms ops
+
+
+@login_required
+def flight_record_create(request, route_id=None):
+    if not can_access_flightops(request.user):
         messages.error(
             request,
             "You are not authorised to create flight records.",
         )
         return redirect("core:home")
 
+    # Load the exact flight selected on the dashboard.
+    route = None
+
+    if route_id is not None:
+        route = get_object_or_404(
+            FlightRoute.objects.select_related("aircraft"),
+            pk=route_id,
+        )
+
+    identity = get_pilot_identity(request.user)
+
     if request.method == "POST":
         form = FlightRecordForm(request.POST)
 
         if form.is_valid():
             record = form.save(commit=False)
-            record.created_by = request.user
 
-            # Fetch identity details from the authenticated account.
-            record.service_number = request.user.username
-            record.rank = profile.get_rank_display()
-            record.personnel_name = (
-                profile.full_name
-                or " ".join(
-                    part for part in [
-                        profile.first_name or request.user.first_name,
-                        profile.middle_name,
-                        profile.last_name or request.user.last_name,
-                    ]
-                    if part
+            # Set these values on the server, not from editable form data.
+            record.created_by = request.user
+            record.service_number = identity["service_number"]
+            record.rank = identity["rank"]
+            record.personnel_name = identity["pilot_name"]
+
+            # Link the record to the selected database route.
+            if route is not None:
+                record.route = route
+            else:
+                # A route must be selected before saving a flight record.
+                messages.error(
+                    request,
+                    "Please select a flight from the Flight Operations dashboard.",
                 )
-            )
+                return redirect("core:flightops_home")
 
             record.save()
 
@@ -1129,109 +1407,175 @@ def flight_record_create(request):
                 request,
                 "Flight record saved successfully.",
             )
-            return redirect("core:flight_record_create")
+            return redirect("core:flightops_home")
+
     else:
         form = FlightRecordForm()
 
-    routes = (
-        FlightRoute.objects
-        .filter(
-            is_active=True,
-            aircraft__is_active=True,
-            departure_datetime__gt=timezone.now(),
-        )
-        .select_related("aircraft")
-        .order_by("departure_datetime")
-    )
+    scheduled_duration = ""
 
-    route_details = [
-        {
-            "id": route.pk,
-            "aircraft": route.aircraft.name,
-            "tail_number": route.aircraft.tail_number,
-            "departure": route.departure_airport,
-            "destination": route.destination_airport,
-            "departure_time": route.departure_datetime.isoformat(),
-            "arrival_time": route.arrival_datetime.isoformat(),
-        }
-        for route in routes
-    ]
+    if route is not None:
+        minutes = max(
+            0,
+            int(
+                (
+                    route.arrival_datetime
+                    - route.departure_datetime
+                ).total_seconds() // 60
+            ),
+        )
+        scheduled_duration = f"{minutes // 60}h {minutes % 60}m"
+
+    context = {
+        "form": form,
+        "route": route,
+        "service_number": identity["service_number"],
+        "rank_display": identity["rank"],
+        "personnel_name": identity["pilot_name"],
+        "scheduled_duration": scheduled_duration,
+    }
 
     return render(
         request,
         "core/flight_record_form.html",
-        {
-            "form": form,
-            "profile": profile,
-            "service_number": request.user.username,
-            "personnel_name": (
-                profile.full_name
-                or request.user.get_full_name()
-                or request.user.username
-            ),
-            "rank_display": profile.get_rank_display(),
-            "route_details": route_details,
-        },
+        context,
     )
 
-# route added
-from django.shortcuts import render, redirect
-from django.contrib import messages
-from django.contrib.auth.decorators import login_required
+@login_required
+def flight_record_start(request, route_id):
+    if request.method != "POST":
+        return redirect("core:flightops_home")
 
-from .models import FlightRoute
-from .forms import FlightRecordForm
+    route = get_object_or_404(FlightRoute, pk=route_id)
+
+    responsibility = get_object_or_404(
+        FlightResponsibility,
+        route=route,
+        pilot=request.user,
+    )
+
+    if responsibility.status == FlightResponsibility.Status.COMPLETED:
+        messages.info(request, "This flight has already been completed.")
+        return redirect("core:flight_route_detail", route_id=route.id)
+
+    responsibility.status = (
+        FlightResponsibility.Status.AWAITING_COMPLETION
+    )
+    responsibility.save(update_fields=["status", "updated_at"])
+
+    return redirect(
+        "core:flight_record_create",
+        route_id=route.id,
+    )
+
+# for editing
 
 
 @login_required
-def flight_record_create(request):
-    routes = (
-        FlightRoute.objects
-        .filter(is_active=True, aircraft__is_active=True)
-        .select_related("aircraft")
-        .order_by("departure_datetime")
+def flightops_route_detail(request, route_id):
+    if not can_access_flightops(request.user):
+        messages.error(
+            request,
+            "You are not authorised to edit flight records."
+        )
+        return redirect("core:home")
+
+    route = get_object_or_404(
+        FlightRoute.objects.select_related("aircraft"),
+        pk=route_id,
     )
 
+    # Fetch the existing saved record for this flight.
+    record = (
+        FlightRecord.objects
+        .filter(route=route)
+        .order_by("-created_at")
+        .first()
+    )
+
+    is_new_record = record is None
+
+    if is_new_record:
+        record = FlightRecord(route=route)
+
+    identity = get_pilot_identity(request.user)
+
     if request.method == "POST":
-        form = FlightRecordForm(request.POST)
+        # IMPORTANT: instance=record updates the existing record.
+        form = FlightRecordForm(
+            request.POST,
+            instance=record,
+        )
 
         if form.is_valid():
-            record = form.save(commit=False)
-            record.created_by = request.user
+            saved_record = form.save(commit=False)
 
-            # Keep your existing profile and identity assignments here.
-            record.save()
+            saved_record.route = route
 
-            messages.success(request, "Flight record saved successfully.")
-            return redirect("flight_record_create")
+            if is_new_record:
+                saved_record.created_by = request.user
+                saved_record.service_number = identity["service_number"]
+                saved_record.rank = identity["rank"]
+                saved_record.personnel_name = identity["pilot_name"]
+
+            if (
+                not saved_record.actual_takeoff
+                or not saved_record.actual_landing
+            ):
+                messages.error(
+                    request,
+                    "Enter both actual take-off and landing times."
+                )
+
+            elif (
+                saved_record.actual_landing
+                < saved_record.actual_takeoff
+            ):
+                messages.error(
+                    request,
+                    "Actual landing time cannot be earlier "
+                    "than actual take-off time."
+                )
+
+            else:
+                saved_record.save()
+
+                messages.success(
+                    request,
+                    "Flight record saved successfully."
+                )
+
+                return redirect("core:flightops_home")
+
     else:
-        form = FlightRecordForm()
+        # IMPORTANT: populate the form from the database.
+        form = FlightRecordForm(instance=record)
 
-    route_details = {}
+    scheduled_minutes = max(
+        0,
+        int(
+            (
+                route.arrival_datetime
+                - route.departure_datetime
+            ).total_seconds() // 60
+        ),
+    )
 
-    for route in routes:
-        duration = route.arrival_datetime - route.departure_datetime
-
-        route_details[str(route.id)] = {
-            "aircraft": route.aircraft.name,
-            "tail_number": route.aircraft.tail_number,
-            "departure": route.departure_airport,
-            "destination": route.destination_airport,
-            "scheduled_departure": route.departure_datetime.strftime(
-                "%Y-%m-%dT%H:%M"
-            ),
-            "scheduled_arrival": route.arrival_datetime.strftime(
-                "%Y-%m-%dT%H:%M"
-            ),
-            "duration": str(duration),
-        }
+    context = {
+        "form": form,
+        "route": route,
+        "service_number": identity["service_number"],
+        "rank_display": identity["rank"],
+        "personnel_name": identity["pilot_name"],
+        "scheduled_duration": (
+            f"{scheduled_minutes // 60}h "
+            f"{scheduled_minutes % 60}m"
+        ),
+        "is_new_record": is_new_record,
+    }
 
     return render(
         request,
         "core/flight_record_form.html",
-        {
-            "form": form,
-            "routes": routes,
-            "route_details": route_details,
-        },
-)
+        context,
+    )

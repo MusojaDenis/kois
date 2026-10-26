@@ -1,0 +1,206 @@
+
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>KOIS | Flight Details</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+          rel="stylesheet">
+
+    <style>
+        body { background: #f4f6f9; }
+        .kois-navbar { background: #10243a; }
+        .report-heading {
+            background: #17324d;
+            color: white;
+            padding: 16px;
+            border-radius: 6px;
+        }
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white; }
+            .card { box-shadow: none !important; }
+        }
+    </style>
+</head>
+
+<body>
+<nav class="navbar navbar-dark kois-navbar px-3">
+    <a class="navbar-brand fw-bold"
+       href="{% url 'core:flightops_home' %}">KENYA AIRFORCE OPERATIONS INFORMATION SYSTEM (KOIS)</a>
+
+    <span class="text-white">
+        Service Number: {{ request.user.username }}
+    </span>
+</nav>
+
+<main class="container-fluid px-3 px-lg-4 py-4">
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-info">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="d-flex justify-content-between align-items-center mb-3 no-print">
+        <a href="{% url 'core:flightops_home' %}"
+           class="btn btn-outline-secondary">
+            Back to Dashboard
+        </a>
+
+        <button onclick="window.print()" class="btn btn-primary">
+            Print Manifest
+        </button>
+    </div>
+
+    <div class="report-heading text-center mb-4">
+        <h3 class="mb-1">KOIS FLIGHT OPERATIONS</h3>
+        <h5 class="mb-0">FLIGHT PASSENGER MANIFEST</h5>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white">
+            <strong>Flight Details — Automatically Retrieved</strong>
+        </div>
+
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <strong>Aircraft:</strong>
+                    {{ route.aircraft.name }}
+                </div>
+
+                <div class="col-md-4">
+                    <strong>Tail Number:</strong>
+                    {{ route.aircraft.tail_number }}
+                </div>
+
+                <div class="col-md-4">
+                    <strong>Passenger Capacity:</strong>
+                    {{ route.aircraft.passenger_capacity }}
+                </div>
+
+                <div class="col-md-4">
+                    <strong>Departure:</strong>
+                    {{ route.departure_airport }}
+                </div>
+
+                <div class="col-md-4">
+                    <strong>Destination:</strong>
+                    {{ route.destination_airport }}
+                </div>
+
+                <div class="col-md-4">
+                    <strong>Departure Time:</strong>
+                    {{ route.departure_datetime|date:"d M Y H:i" }}
+                </div>
+
+                <div class="col-md-4">
+                    <strong>Arrival Time:</strong>
+                    {{ route.arrival_datetime|date:"d M Y H:i" }}
+                </div>
+
+                <div class="col-md-4">
+                    <strong>Approved Passengers:</strong>
+                    {{ passenger_count }}
+                </div>
+
+                <div class="col-md-4">
+                    <strong>Available Seats:</strong>
+                    {{ route.available_seats }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white d-flex justify-content-between">
+            <strong>Passenger Details</strong>
+            <span class="text-muted small">
+                {{ passenger_count }} approved passenger(s)
+            </span>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-bordered table-striped align-middle mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th>No.</th>
+                        <th>Service Number</th>
+                        <th>Rank</th>
+                        <th>Passenger Name</th>
+                        <th>Appointment</th>
+                        <th>Passenger Weight (kg)</th>
+                        <th>Luggage Items</th>
+                        <th>Luggage Weight (kg)</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    {% for booking in bookings %}
+                        <tr>
+                            <td>{{ forloop.counter }}</td>
+                            <td>{{ booking.service_number }}</td>
+                            <td>{{ booking.rank|default:"—" }}</td>
+                            <td>{{ booking.passenger_full_name }}</td>
+                            <td>{{ booking.appointment|default:"—" }}</td>
+
+                            <td>
+                                {% if booking.passenger_weight_kg != None %}
+                                    {{ booking.passenger_weight_kg|floatformat:2 }}
+                                {% else %}
+                                    Not recorded
+                                {% endif %}
+                            </td>
+
+                            <td>{{ booking.luggage_count }}</td>
+                            <td>{{ booking.luggage_weight_kg|floatformat:2 }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="8" class="text-center py-4">
+                                No approved passengers have been recorded
+                                for this flight.
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+
+                <tfoot>
+                    <tr class="table-light fw-bold">
+                        <td colspan="5">TOTALS</td>
+                        <td>{{ total_passenger_weight|floatformat:2 }} kg</td>
+                        <td>{{ total_luggage_count }}</td>
+                        <td>{{ total_luggage_weight|floatformat:2 }} kg</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-white">
+            <strong>Pilot Responsibility</strong>
+        </div>
+
+        <div class="card-body">
+            {% if responsibility %}
+                <p><strong>Status:</strong> Responsibility recorded</p>
+                <p><strong>Pilot:</strong> {{ responsibility.pilot_name }}</p>
+                <p><strong>Service Number:</strong> {{ responsibility.service_number }}</p>
+                <p><strong>Rank:</strong> {{ responsibility.rank|default:"—" }}</p>
+                <p><strong>Date Recorded:</strong> {{ responsibility.taken_at|date:"d M Y H:i" }}</p>
+            {% else %}
+                <p class="text-muted">
+                    No pilot has taken responsibility for this flight yet.
+                </p>
+            {% endif %}
+        </div>
+    </div>
+
+</main>
+</body>
+</html>

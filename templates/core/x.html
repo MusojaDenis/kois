@@ -1,0 +1,211 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Book a Flight | KOIS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+          rel="stylesheet">
+        <style>
+        body {
+            background: #f3f6fa;
+        }
+
+        .kois-navbar {
+            background: #10243a;
+        }
+
+        .kois-sidebar {
+            background: #17324d;
+            min-height: calc(100vh - 56px);
+        }
+
+        .kois-sidebar a {
+            display: block;
+            color: #e8eef5;
+            padding: 12px 16px;
+            text-decoration: none;
+            border-radius: 6px;
+            margin-bottom: 4px;
+        }
+
+        .kois-sidebar a:hover,
+        .kois-sidebar a.active {
+            background: #285578;
+            color: white;
+        }
+
+        .stat-card {
+            border: 0;
+            border-radius: 12px;
+            min-height: 125px;
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 700;
+        }
+
+        .status-available {
+            color: #198754;
+            font-weight: 600;
+        }
+
+        .status-reserved {
+            color: #fd7e14;
+            font-weight: 600;
+        }
+
+        .status-full {
+            color: #dc3545;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+<nav class="navbar navbar-dark px-3">
+    <a class="navbar-brand fw-bold" href="{% url 'core:manifest_flights' %}">KOIS</a>
+    <div class="d-flex align-items-center gap-3 text-white">
+        <span>Service No: {{ request.user.username }}</span>
+        <form method="post" action="{% url 'core:logout' %}" class="m-0">
+            {% csrf_token %}
+            <button class="btn btn-outline-light btn-sm" type="submit">Logout</button>
+        </form>
+    </div>
+</nav>
+
+<div class="container-fluid">
+    <div class="row">
+
+            <aside class="col-md-3 col-lg-2 kois-sidebar py-4">
+            <div class="text-uppercase text-white-50 small px-3 mb-3">
+                flights & Booking
+            </div>
+
+            <a class="active" href="{% url 'core:booking_admin_home' %}">
+                Home
+            </a>
+            <div class="text-uppercase text-white-50 small px-3 mt-4 mb-2">
+                Flight Manager
+            </div>
+            <a href="{% url 'core:flight_record_create' %}">
+                Fly
+            </a>
+
+            <a href="{% url 'core:aircraft_list' %}">
+                Flight Details / Aircraft
+            </a>
+
+            <a href="{% url 'core:route_list' %}">
+                Route Manager & Flight Status
+            </a>
+
+            <div class="text-uppercase text-white-50 small px-3 mt-4 mb-2">
+                Operations
+            </div>
+
+            <a href="{% url 'core:booking_list' %}">
+                Manage Bookings
+            </a>
+
+            <a href="{% url 'core:official_seat_reservations' %}">
+                Official Seat Reservations
+            </a>
+
+            <a href="{% url 'core:flight_reports' %}">
+                Reports / Flight Passenger Manifest
+            </a>
+        </aside>
+
+        <main class="col-md-10 content">
+            <h2>FLIGHT AUTHORIZATION AND FLYING TIMES</h2>
+            <p class="text-muted">Your identity details are taken from your KOIS account.</p>
+
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-info alert-dismissible fade show">
+                        {{ message }}
+                        <button class="btn-close" type="button" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+
+            <form method="post" class="card shadow-sm">
+                {% csrf_token %}
+                <div class="card-header bg-white fw-bold">Aircraft Details</div>
+                 <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th rowspan="2">Aircraft</th>
+                                <th rowspan="2">Tail Number</th>
+                                <th rowspan="2">Departure</th>
+                                <th rowspan="2">Destination</th>
+                                <th rowspan="2">Departure Time</th>
+                                <th rowspan="2">Arrival Time</th>
+                                <th rowspan="2">Reserved Seats</th>
+                                <th rowspan="2">Available Seats</th>
+                                <!-- Spans across the 3 sub-columns below -->
+                                <th colspan="2" style="text-align: center;">Action</th>
+                             </tr>
+                            <!-- Second header row defines the sub-actions -->
+                            <tr>
+                                <th>view</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for route in upcoming_routes %}
+                                <tr>
+                                    <td>{{ route.aircraft.name }}</td>
+                                    <td>{{ route.aircraft.tail_number }}</td>
+                                    <td>{{ route.departure_airport }}</td>
+                                    <td>{{ route.destination_airport }}</td>
+                                    <td>{{ route.departure_datetime|date:"d M Y H:i" }}</td>
+                                    <td>{{ route.arrival_datetime|date:"d M Y H:i" }}</td>
+                                    <td>{{ route.reserved_seats }}</td>
+                                    <td>{{ route.available_seats }}</td>
+                                    <td>
+                                        <a href="#" class="btn btn-sm btn-outline-primary">
+                                            View
+                                        </a>
+                                    </td>
+                                    
+                                    <td>
+                                        {% if route.flight_status == "FULL" %}
+                                            <span class="status-full">Full</span>
+                                        {% elif route.flight_status == "RESERVED" %}
+                                            <span class="status-reserved">Reserved seats</span>
+                                        {% else %}
+                                            <span class="status-available">Available</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="8" class="text-center py-4 text-muted">
+                                        No upcoming flights have been created yet.
+                                        Add aircraft and routes to begin.
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="card-footer bg-white d-flex justify-content-between">
+                    <a href="#" class="btn btn-outline-secondary">
+                        Back to Dashboard
+                    </a>
+                    <button type="#" class="btn btn-primary">
+                        Submit Booking Request
+                    </button>
+                </div>
+            </form>
+        </main>
+    </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

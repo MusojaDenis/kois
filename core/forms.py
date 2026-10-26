@@ -160,16 +160,22 @@ class FlightRecordForm(forms.ModelForm):
     class Meta:
         model = FlightRecord
         fields = [
-            "route",
+            # Section 2: Pilot, Students and Passengers
             "crew_names",
             "student_names",
             "passenger_names",
+
+            # Other flight details
             "officer_name_initial",
             "captain_name_initial",
+
+            # Section 3: Actual Flight Times
             "actual_takeoff",
             "actual_landing",
             "day_hours",
             "night_hours",
+
+            # Flight details
             "instrument_flying",
             "approach_aid",
             "pax",
@@ -182,106 +188,46 @@ class FlightRecordForm(forms.ModelForm):
         ]
 
         widgets = {
-            "route": forms.Select(attrs={
-                "class": "form-select",
-            }),
-            "crew_names": forms.Textarea(attrs={
-                "class": "form-control",
-                "rows": 2,
-                "placeholder": "Enter crew names",
-            }),
-            "student_names": forms.Textarea(attrs={
-                "class": "form-control",
-                "rows": 2,
-                "placeholder": "Enter student names",
-            }),
-            "passenger_names": forms.Textarea(attrs={
-                "class": "form-control",
-                "rows": 2,
-                "placeholder": "Enter passenger names",
-            }),
-            "officer_name_initial": forms.TextInput(attrs={
-                "class": "form-control",
-                "placeholder": "Officer name and initial",
-            }),
-            "captain_name_initial": forms.TextInput(attrs={
-                "class": "form-control",
-                "placeholder": "Captain name and initial",
-            }),
-            "actual_takeoff": forms.DateTimeInput(attrs={
-                "class": "form-control",
-                "type": "datetime-local",
-            }),
-            "actual_landing": forms.DateTimeInput(attrs={
-                "class": "form-control",
-                "type": "datetime-local",
-            }),
-            "day_hours": forms.NumberInput(attrs={
-                "class": "form-control",
-                "min": "0",
-                "step": "0.01",
-            }),
-            "night_hours": forms.NumberInput(attrs={
-                "class": "form-control",
-                "min": "0",
-                "step": "0.01",
-            }),
-            "instrument_flying": forms.Select(attrs={
-                "class": "form-select",
-            }),
-            "approach_aid": forms.Select(attrs={
-                "class": "form-select",
-            }),
-            "pax": forms.NumberInput(attrs={
-                "class": "form-control", "min": "0",
-            }),
-            "frt": forms.NumberInput(attrs={
-                "class": "form-control", "min": "0",
-            }),
-            "xty": forms.NumberInput(attrs={
-                "class": "form-control", "min": "0",
-            }),
-            "xx": forms.NumberInput(attrs={
-                "class": "form-control", "min": "0",
-            }),
-            "remarks": forms.Textarea(attrs={
-                "class": "form-control", "rows": 3,
-            }),
-            "number_of_landings": forms.NumberInput(attrs={
-                "class": "form-control", "min": "0",
-            }),
-            "captains_initials": forms.TextInput(attrs={
-                "class": "form-control",
-            }),
+            "crew_names": forms.Textarea(
+                attrs={"class": "form-control", "rows": 3}
+            ),
+            "student_names": forms.Textarea(
+                attrs={"class": "form-control", "rows": 3}
+            ),
+            "passenger_names": forms.Textarea(
+                attrs={"class": "form-control", "rows": 3}
+            ),
+            "actual_takeoff": forms.DateTimeInput(
+                format="%Y-%m-%dT%H:%M",
+                attrs={
+                    "type": "datetime-local",
+                    "class": "form-control",
+                },
+            ),
+            "actual_landing": forms.DateTimeInput(
+                format="%Y-%m-%dT%H:%M",
+                attrs={
+                    "type": "datetime-local",
+                    "class": "form-control",
+                },
+            ),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["route"].queryset = (
-            FlightRoute.objects
-            .filter(is_active=True, aircraft__is_active=True)
-            .select_related("aircraft")
-            .order_by("departure_datetime")
-        )
 
-    def clean(self):
-        cleaned = super().clean()
-        takeoff = cleaned.get("actual_takeoff")
-        landing = cleaned.get("actual_landing")
+        # Accept the format used by datetime-local inputs.
+        for field_name in ("actual_takeoff", "actual_landing"):
+            self.fields[field_name].input_formats = [
+                "%Y-%m-%dT%H:%M",
+                "%Y-%m-%d %H:%M:%S",
+                "%Y-%m-%d %H:%M",
+            ]
 
-        if takeoff and landing and landing < takeoff:
-            self.add_error(
-                "actual_landing",
-                "Actual landing cannot be before actual take-off.",
-            )
-
-        return cleaned
-
-    # route
-    class FlightRecordForm(forms.ModelForm):
-      class Meta:
-        model = FlightRecord
-        fields = [
-            "route",
-            # Keep the rest of your existing fields here.
-        ]
+        # Apply Bootstrap styling to all fields.
+        for field in self.fields.values():
+            existing_class = field.widget.attrs.get("class", "")
+            if "form-control" not in existing_class:
+                field.widget.attrs["class"] = (
+                    existing_class + " form-control"
+                ).strip()

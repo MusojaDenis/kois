@@ -38,7 +38,7 @@
 </head>
 <body>
 <nav class="navbar navbar-dark px-3">
-    <a class="navbar-brand fw-bold" href="{% url 'core:manifest_flights' %}">KOIS</a>
+    <a class="navbar-brand fw-bold" href="{% url 'core:manifest_flights' %}">KENYA AIRFORCE OPERATIONS INFORMATION SYSTEM (KOIS)</a>
     <div class="d-flex align-items-center gap-3 text-white">
         <span>Service No: {{ request.user.username }}</span>
         <form method="post" action="{% url 'core:logout' %}" class="m-0">

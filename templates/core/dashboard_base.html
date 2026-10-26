@@ -33,40 +33,7 @@
 
 <div class="container-fluid">
     <div class="row">
-        <!-- <aside class="col-md-3 col-lg-2 bg-white border-end min-vh-100 p-3">
-            <h6 class="text-secondary text-uppercase mt-3">
-                Operations
-            </h6>
-            {% if user.is_authenticated %}
-                {% if user.is_superuser or user.kois_profile.role == "ADMIN" %}
-                    <a href="{% url 'core:user_management' %}"
-                    class="nav-link">
-                        <i class="bi bi-people"></i>
-                        User Management
-                    </a>
-                {% endif %}
-            {% endif %}
-            <a class="d-block py-2 text-decoration-none"
-               href="{% url 'core:dashboard' module='manifest' %}">
-                Flight Manifest
-            </a>
-            <a class="d-block py-2 text-decoration-none"
-               href="{% url 'core:dashboard' module='flightops' %}">
-                Flight Authorization
-            </a>
-            <a class="d-block py-2 text-decoration-none"
-               href="{% url 'core:dashboard' module='maintenance' %}">
-                Aircraft Maintenance
-            </a>
-
-            {% if request.user.is_staff %}
-                <hr>
-                <a class="d-block py-2 text-decoration-none"
-                   href="{% url 'admin:index' %}">
-                    Administration
-                </a>
-            {% endif %}
-        </aside> -->
+      
 <aside class="col-md-2 sidebar px-0">
             <a href="{% url 'core:manifest_flights' %}">Flights</a>
             <a href="{% url 'core:passenger_book' %}">Book a Flight</a>

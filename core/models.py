@@ -95,43 +95,6 @@ class FlightRoute(models.Model):
             f"({self.departure_datetime:%Y-%m-%d %H:%M})"
         )
 
-    # @property
-    # def reserved_seats(self):
-    #     return self.bookings.filter(
-    #         status=Booking.Status.PENDING
-    #     ).count()
-
-    # @property
-    # def occupied_seats(self):
-    #     return self.bookings.filter(
-    #         status=Booking.Status.APPROVED
-    #     ).count()
-
-    
-    # @property
-    # def available_seats(self):
-    #     passenger_bookings = self.bookings.filter(
-    #         status__in=[
-    #             Booking.Status.PENDING,
-    #             Booking.Status.APPROVED,
-    #         ]
-    #     ).count()
-
-    #     official_reservations = (
-    #         self.official_seat_reservations
-    #         .filter(is_active=True)
-    #         .aggregate(total=Sum("seats_reserved"))["total"]
-    #         or 0
-    #     )
-
-    #     remaining = (
-    #         self.aircraft.passenger_capacity
-    #         - passenger_bookings
-    #         - official_reservations
-    #     )
-
-    #     return max(remaining, 0)
-
     @property
     def reserved_seats(self):
         # Passenger bookings awaiting approval
@@ -423,3 +386,31 @@ class FlightRecord(models.Model):
 
         delta = self.actual_landing - self.actual_takeoff
         return int(delta.total_seconds() // 60)
+
+class FlightResponsibility(models.Model):
+    route = models.OneToOneField(
+        FlightRoute,
+        on_delete=models.PROTECT,
+        related_name="responsibility",
+    )
+
+    pilot = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="kois_flight_responsibilities",
+    )
+
+    service_number = models.CharField(max_length=150)
+    rank = models.CharField(max_length=50, blank=True)
+    pilot_name = models.CharField(max_length=300)
+
+    taken_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-taken_at"]
+
+    def __str__(self):
+        return (
+            f"{self.route.aircraft.name} - "
+            f"taken by {self.service_number}"
+        )

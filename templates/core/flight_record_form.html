@@ -23,11 +23,23 @@
     </style>
 </head>
 <body>
-<nav class="navbar navbar-dark px-3 py-3">
-    <a class="navbar-brand fw-bold" href="{% url 'core:home' %}">
-        KOIS | Flight Operations
+<nav class="navbar navbar-dark kois-navbar px-3 px-lg-4">
+    <a class="navbar-brand fw-bold" href="{% url 'core:flightops_home' %}">
+        KENYA AIRFORCE OPERATIONS INFORMATION SYSTEM (KOIS)
     </a>
-    <span class="text-white">Flight Record Entry</span>
+
+    <div class="d-flex align-items-center gap-3">
+        <span class="text-white small">
+            Service Number: {{ request.user.username }}
+        </span>
+
+        <form method="post" action="{% url 'core:logout' %}">
+            {% csrf_token %}
+            <button class="btn btn-outline-light btn-sm" type="submit">
+                Logout
+            </button>
+        </form>
+    </div>
 </nav>
 
 <main class="container py-4">
@@ -38,7 +50,6 @@
             <p class="text-muted">
                 Personnel details are retrieved from your KOIS account.
                 Verify all operational entries before saving.
-                
             </p>
 
             {% if messages %}
@@ -60,7 +71,7 @@
             <form method="post">
                 {% csrf_token %}
 
-                <!-- <h2 class="section-title">1. Personnel Details</h2>
+                <h2 class="section-title">1. Personnel Details</h2>
                 <div class="row g-3">
                     <div class="col-md-4">
                         <label class="form-label">Service Number</label>
@@ -77,70 +88,84 @@
                         <input class="form-control readonly-field"
                                value="{{ personnel_name }}" readonly>
                     </div>
-                </div> -->
+                </div> 
                       <!-- add flight route -->
                     <h2 class="section-title">1. Aircraft, Flight and Route</h2>
+
+<input type="hidden" name="route" value="{{ route.id }}">
 
 <div class="row g-3">
 
     <div class="col-md-6">
-        <label for="id_route" class="form-label">Flight Route</label>
-        <select id="id_route" name="route" class="form-select" required>
-            <option value="">-- Select Flight Route --</option>
-            {% for route in routes %}
-                <option value="{{ route.id }}"
-                    {% if form.route.value|stringformat:"s" == route.id|stringformat:"s" %}
-                        selected
-                    {% endif %}>
-                    {{ route.departure_airport }}
-                    →
-                    {{ route.destination_airport }}
-                    | {{ route.departure_datetime|date:"d M Y H:i" }}
-                </option>
-            {% endfor %}
-        </select>
+        <label class="form-label">Flight Route</label>
+        <input
+            class="form-control readonly-field"
+            value="{{ route.departure_airport }} → {{ route.destination_airport }}"
+            readonly
+        >
     </div>
 
     <div class="col-md-6">
         <label class="form-label">Aircraft</label>
-        <input type="text" id="aircraft_name"
-               class="form-control" readonly>
+        <input
+            class="form-control readonly-field"
+            value="{{ route.aircraft.name }}"
+            readonly
+        >
     </div>
 
     <div class="col-md-6">
         <label class="form-label">Aircraft Tail Number</label>
-        <input type="text" id="tail_number"
-               class="form-control" readonly>
+        <input
+            class="form-control readonly-field"
+            value="{{ route.aircraft.tail_number }}"
+            readonly
+        >
     </div>
 
     <div class="col-md-6">
         <label class="form-label">Departure Airport</label>
-        <input type="text" id="departure_airport"
-               class="form-control" readonly>
+        <input
+            class="form-control readonly-field"
+            value="{{ route.departure_airport }}"
+            readonly
+        >
     </div>
 
     <div class="col-md-6">
         <label class="form-label">Destination Airport</label>
-        <input type="text" id="destination_airport"
-               class="form-control" readonly>
+        <input
+            class="form-control readonly-field"
+            value="{{ route.destination_airport }}"
+            readonly
+        >
     </div>
 
     <div class="col-md-6">
         <label class="form-label">Scheduled Departure</label>
-        <input type="datetime-local" id="scheduled_departure"
-               class="form-control" readonly>
+        <input
+            class="form-control readonly-field"
+            value="{{ route.departure_datetime|date:'d M Y H:i' }}"
+            readonly
+        >
     </div>
 
     <div class="col-md-6">
         <label class="form-label">Scheduled Arrival</label>
-        <input type="datetime-local" id="scheduled_arrival"
-               class="form-control" readonly>
+        <input
+            class="form-control readonly-field"
+            value="{{ route.arrival_datetime|date:'d M Y H:i' }}"
+            readonly
+        >
     </div>
 
     <div class="col-md-6">
         <label class="form-label">Scheduled Flight Duration</label>
-        <input type="text" id="scheduled_duration"
-               class="form-control" readonly>
+        <input
+            class="form-control readonly-field"
+            value="{{ scheduled_duration }}"
+            readonly
+        >
     </div>
 
 </div>
@@ -261,15 +286,16 @@
                     </div>
                 </div>
 
-                <div class="d-flex gap-2 mt-4">
-                    <button type="submit" class="btn btn-primary">
-                        Save Flight Record
-                    </button>
-                    <a href="{% url 'core:home' %}"
-                       class="btn btn-outline-secondary">
-                        Cancel
-                    </a>
-                </div>
+                    <div class="mt-4">
+                        <button type="submit" class="btn btn-primary">
+                            Save Flight Record
+                        </button>
+
+                        <a href="{% url 'core:flightops_home' %}"
+                        class="btn btn-secondary">
+                            Back to Flight Operations
+                        </a>
+                    </div>
             </form>
         </div>
     </div>
@@ -277,108 +303,172 @@
 
 {{ route_details|json_script:"route-details-data" }}
 
-<script>
-document.addEventListener("DOMContentLoaded", function () {
-    const routeSelect = document.getElementById("id_route");
-    const routeDetails = JSON.parse(
-        document.getElementById("route-details-data").textContent
-    );
-
-    function fetchRouteDetails() {
-        const route = routeDetails[routeSelect.value];
-
-        const fields = {
-            aircraft_name: route?.aircraft || "",
-            tail_number: route?.tail_number || "",
-            departure_airport: route?.departure || "",
-            destination_airport: route?.destination || "",
-            scheduled_departure: route?.scheduled_departure || "",
-            scheduled_arrival: route?.scheduled_arrival || "",
-            scheduled_duration: route?.duration || ""
-        };
-
-        Object.entries(fields).forEach(([id, value]) => {
-            document.getElementById(id).value = value;
-        });
-    }
-
-    routeSelect.addEventListener("change", fetchRouteDetails);
-
-    // Populate details if a route was already selected.
-    fetchRouteDetails();
-});
-</script>
-
 {{ route_details|json_script:"route-details-data" }}
 
 <script>
+document.addEventListener("DOMContentLoaded", function () {
+    // Route elements
     const routeSelect = document.getElementById("id_route");
-    const routeData = JSON.parse(
-        document.getElementById("route-details-data").textContent
-    );
-    const routesById = Object.fromEntries(
-        routeData.map(route => [String(route.id), route])
-    );
+    const routeDataElement = document.getElementById("route-details-data");
+
+    // Actual flight time elements
+    const takeoffInput = document.getElementById("id_actual_takeoff");
+    const landingInput = document.getElementById("id_actual_landing");
+    const durationInput = document.getElementById("actual-duration");
+
+    // Safely load route data
+    let routesById = {};
+
+    if (routeDataElement) {
+        const routeData = JSON.parse(routeDataElement.textContent);
+
+        // Supports either a list of routes or an object keyed by route ID
+        if (Array.isArray(routeData)) {
+            routesById = Object.fromEntries(
+                routeData.map(route => [String(route.id), route])
+            );
+        } else {
+            routesById = routeData || {};
+        }
+    }
 
     function formatDate(value) {
         if (!value) return "";
+
         const date = new Date(value);
-        return Number.isNaN(date.getTime())
-            ? ""
-            : date.toLocaleString();
+
+        if (Number.isNaN(date.getTime())) return "";
+
+        return date.toLocaleString();
     }
 
     function formatDuration(start, end) {
         if (!start || !end) return "";
-        const minutes = Math.round(
-            (new Date(end) - new Date(start)) / 60000
+
+        const minutes = Math.floor(
+            (new Date(end).getTime() - new Date(start).getTime()) / 60000
         );
 
         if (!Number.isFinite(minutes) || minutes < 0) return "";
+
         return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
     }
 
+    function setFieldValue(id, value) {
+        const field = document.getElementById(id);
+
+        if (field) {
+            field.value = value || "";
+        }
+    }
+
+    // Automatically populate the selected route's details
     function updateRoute() {
-        const route = routesById[routeSelect.value];
+        if (!routeSelect) return;
 
-        document.getElementById("aircraft").value =
-            route ? route.aircraft : "";
-        document.getElementById("tail-number").value =
-            route ? route.tail_number : "";
-        document.getElementById("departure").value =
-            route ? route.departure : "";
-        document.getElementById("destination").value =
-            route ? route.destination : "";
-        document.getElementById("scheduled-departure").value =
-            route ? formatDate(route.departure_time) : "";
-        document.getElementById("scheduled-arrival").value =
-            route ? formatDate(route.arrival_time) : "";
-        document.getElementById("scheduled-duration").value =
-            route ? formatDuration(
-                route.departure_time, route.arrival_time
-            ) : "";
+        const route = routesById[String(routeSelect.value)];
+
+        setFieldValue("aircraft_name", route?.aircraft);
+        setFieldValue("tail_number", route?.tail_number);
+        setFieldValue("departure_airport", route?.departure);
+        setFieldValue("destination_airport", route?.destination);
+
+        setFieldValue(
+            "scheduled_departure",
+            route?.scheduled_departure
+                ? route.scheduled_departure
+                : ""
+        );
+
+        setFieldValue(
+            "scheduled_arrival",
+            route?.scheduled_arrival
+                ? route.scheduled_arrival
+                : ""
+        );
+
+        setFieldValue(
+            "scheduled_duration",
+            route?.duration ||
+            formatDuration(
+                route?.departure_time,
+                route?.arrival_time
+            )
+        );
+
+        // Also support the alternative IDs used in your earlier script
+        setFieldValue("aircraft", route?.aircraft);
+        setFieldValue("tail-number", route?.tail_number);
+        setFieldValue("departure", route?.departure);
+        setFieldValue("destination", route?.destination);
+        setFieldValue(
+            "scheduled-departure",
+            formatDate(route?.departure_time)
+        );
+        setFieldValue(
+            "scheduled-arrival",
+            formatDate(route?.arrival_time)
+        );
+        setFieldValue(
+            "scheduled-duration",
+            route?.duration ||
+            formatDuration(
+                route?.departure_time,
+                route?.arrival_time
+            )
+        );
     }
 
+    // Calculate actual flight duration from take-off to landing
     function updateActualDuration() {
-        const takeoff = document.getElementById("id_actual_takeoff").value;
-        const landing = document.getElementById("id_actual_landing").value;
+        if (!takeoffInput || !landingInput || !durationInput) {
+            return;
+        }
 
-        document.getElementById("actual-duration").value =
-            takeoff && landing
-                ? formatDuration(takeoff, landing)
-                : "";
+        if (!takeoffInput.value || !landingInput.value) {
+            durationInput.value = "";
+            return;
+        }
+
+        const takeoff = new Date(takeoffInput.value);
+        const landing = new Date(landingInput.value);
+
+        const minutes = Math.floor(
+            (landing.getTime() - takeoff.getTime()) / 60000
+        );
+
+        if (
+            !Number.isFinite(minutes) ||
+            minutes < 0 ||
+            Number.isNaN(takeoff.getTime()) ||
+            Number.isNaN(landing.getTime())
+        ) {
+            durationInput.value = "";
+            return;
+        }
+
+        durationInput.value =
+            `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
     }
 
-    routeSelect.addEventListener("change", updateRaoute);
-    document.getElementById("id_actual_takeoff").addEventListener(
-        "input", updateActualDuration
-    );
-    document.getElementById("id_actual_landing").addEventListener(
-        "input", updateActualDuration
-    );
+    // Register event listeners safely
+    if (routeSelect) {
+        routeSelect.addEventListener("change", updateRoute);
+        updateRoute();
+    }
 
-    updateRoute();
+    if (takeoffInput) {
+        takeoffInput.addEventListener("input", updateActualDuration);
+        takeoffInput.addEventListener("change", updateActualDuration);
+    }
+
+    if (landingInput) {
+        landingInput.addEventListener("input", updateActualDuration);
+        landingInput.addEventListener("change", updateActualDuration);
+    }
+
     updateActualDuration();
+});
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>

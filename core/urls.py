@@ -31,33 +31,19 @@ urlpatterns = [
     path("manifest/book/", views.passenger_book, name="passenger_book"),
     path("manifest/my-bookings/", views.my_bookings, name="my_bookings"),
 
-    path(
-    "booking-admin/seat-reservations/",
-    views.official_seat_reservations,
-    name="official_seat_reservations",
-),
-path(
-    "booking-admin/seat-reservations/<int:reservation_id>/release/",
-    views.release_official_seat_reservation,
-    name="release_official_seat_reservation",
-),
-path(
-    "booking-admin/reports/",
-    views.flight_reports,
-    name="flight_reports",
-),
-
+    path( "booking-admin/seat-reservations/",views.official_seat_reservations, name="official_seat_reservations",),
+    path( "booking-admin/seat-reservations/<int:reservation_id>/release/",views.release_official_seat_reservation,name="release_official_seat_reservation",),
+    path( "booking-admin/reports/",views.flight_reports, name="flight_reports",),
 
 # added URL for flight ops
+    path( "flight-record/new/",views.flight_record_create, name="flight_record_create",),
 
+    path( "flightops/",views.flightops_home, name="flightops_home",),
+    path("flightops/flight/<int:route_id>/",views.flightops_route_detail,name="flightops_route_detail",),
+    path("flightops/flight/<int:route_id>/take/",views.take_flight, name="take_flight",),
+    path( "flightops/flight/<int:route_id>/record/start/",views.flight_record_start,name="flight_record_start",),
+    path("flightops/flight/<int:route_id>/record/", views.flight_record_create, name="flight_record_create",),
 
-
-
-    path(
-        "flight-record/new/",
-        views.flight_record_create,
-        name="flight_record_create",
-    ),
-
-
+    path( "flight-record/new/<int:route_id>/", views.flight_record_create, name="flight_record_create_for_route",),
+    path("flightops/flight/<int:route_id>/complete/",views.flightops_route_detail,name="flightops_route_detail",),
 ]
