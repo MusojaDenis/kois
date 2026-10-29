@@ -183,7 +183,7 @@ def dashboard(request, module):
     if not allowed:
         messages.error(
             request,
-            "You are not authorised to access this dashboard."
+            "You are not authorized to access this dashboard."
         )
         return redirect("core:home")
 
@@ -214,7 +214,7 @@ def user_management(request):
     if not is_kois_admin(request.user):
         messages.error(
             request,
-            "You are not authorised to manage KOIS personnel."
+            "You are not authorized to manage KOIS personnel."
         )
         return redirect("core:home")
 
@@ -278,7 +278,7 @@ def booking_admin_home(request):
     if not allowed:
         messages.error(
             request,
-            "You are not authorised to access Booking Administration."
+            "You are not authorized to access Booking Administration."
         )
         return redirect("core:home")
 
@@ -418,7 +418,7 @@ def can_manage_bookings(user):
 @login_required
 def booking_list(request):
     if not can_manage_bookings(request.user):
-        messages.error(request, "You are not authorised to manage bookings.")
+        messages.error(request, "You are not authorized to manage bookings.")
         return redirect("core:home")
 
     selected_status = request.GET.get("status", "PENDING")
@@ -460,7 +460,7 @@ def booking_list(request):
 @require_POST
 def booking_approve(request, booking_id):
     if not can_manage_bookings(request.user):
-        messages.error(request, "You are not authorised to approve bookings.")
+        messages.error(request, "You are not authorized to approve bookings.")
         return redirect("core:home")
 
     with transaction.atomic():
@@ -532,7 +532,7 @@ def booking_approve(request, booking_id):
 @require_POST
 def booking_cancel(request, booking_id):
     if not can_manage_bookings(request.user):
-        messages.error(request, "You are not authorised to cancel bookings.")
+        messages.error(request, "You are not authorized to cancel bookings.")
         return redirect("core:home")
 
     with transaction.atomic():
@@ -639,7 +639,7 @@ def manifest_flights(request):
             UserProfile.Role.MANIFEST,
         ]
     ):
-        messages.error(request, "You are not authorised to access passenger flights.")
+        messages.error(request, "You are not authorized to access passenger flights.")
         return redirect("core:home")
 
     routes = FlightRoute.objects.filter(
@@ -665,7 +665,7 @@ def passenger_book(request):
             UserProfile.Role.MANIFEST,
         ]
     ):
-        messages.error(request, "You are not authorised to book flights.")
+        messages.error(request, "You are not authorized to book flights.")
         return redirect("core:home")
 
     routes = FlightRoute.objects.filter(
@@ -818,7 +818,7 @@ def my_bookings(request):
             UserProfile.Role.MANIFEST,
         ]
     ):
-        messages.error(request, "You are not authorised to view these bookings.")
+        messages.error(request, "You are not authorized to view these bookings.")
         return redirect("core:home")
 
     bookings = Booking.objects.filter(
@@ -840,7 +840,7 @@ def official_seat_reservations(request):
     if not can_manage_flights(request.user):
         messages.error(
             request,
-            "You are not authorised to manage seat reservations."
+            "You are not authorized to manage seat reservations."
         )
         return redirect("core:home")
 
@@ -954,7 +954,7 @@ def release_official_seat_reservation(request, reservation_id):
     if not can_manage_flights(request.user):
         messages.error(
             request,
-            "You are not authorised to release seat reservations."
+            "You are not authorized to release seat reservations."
         )
         return redirect("core:home")
 
@@ -987,7 +987,7 @@ def flight_reports(request):
     if not can_manage_flights(request.user):
         messages.error(
             request,
-            "You are not authorised to access flight reports."
+            "You are not authorized to access flight reports."
         )
         return redirect("core:home")
 
@@ -1119,7 +1119,7 @@ def flightops_home(request):
     if not can_access_flightops(request.user):
         messages.error(
             request,
-            "You are not authorised to access Flight Operations."
+            "You are not authorized to access Flight Operations."
         )
         return redirect("core:home")
 
@@ -1177,7 +1177,7 @@ def flightops_route_detail(request, route_id):
     if not can_access_flightops(request.user):
         messages.error(
             request,
-            "You are not authorised to view flight details."
+            "You are not authorized to view flight details."
         )
         return redirect("core:home")
 

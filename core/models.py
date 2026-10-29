@@ -7,10 +7,6 @@ from django.db import models
 from django.db.models import Q, Count, Sum
 from django.utils import timezone
 
-# added for ops
-# from django.conf import settings
-# from django.core.validators import MinValueValidator
-# from django.db import models
 
 class UserProfile(models.Model):
 
